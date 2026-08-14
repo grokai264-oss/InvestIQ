@@ -1,0 +1,21 @@
+# Python
+backend/.venv/
+backend/.env
+backend/**/__pycache__/
+backend/**/*.pyc
+*.egg-info/
+.pytest_cache/
+
+# Flutter
+flutter_app/.dart_tool/
+flutter_app/build/
+flutter_app/.flutter-plugins
+flutter_app/.flutter-plugins-dependencies
+flutter_app/.packages
+flutter_app/pubspec.lock
+
+# IDE / OS
+.idea/
+.vscode/
+.DS_Store
+*.swp

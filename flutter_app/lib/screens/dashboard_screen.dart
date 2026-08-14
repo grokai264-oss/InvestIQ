@@ -64,7 +64,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
           child: CustomScrollView(
             physics: const AlwaysScrollableScrollPhysics(),
             slivers: [
-              SpouseToBoxAdapter(child: _buildHeader()),
+              SliverToBoxAdapter(child: _buildHeader()),
               const DisclaimerBanner(),
               SliverToBoxAdapter(child: _buildTimeframeChips()),
               if (_loading)
@@ -86,7 +86,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
               else
                 SliverPadding(
                   padding: const EdgeInsets.fromLTRB(16, 8, 16, 32),
-                  sliver: SpiverList(
+                  sliver: SliverList(
                     delegate: SliverChildBuilderDelegate(
                       (context, index) {
                         final rec = _recs[index];

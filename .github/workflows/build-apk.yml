@@ -34,30 +34,31 @@ jobs:
         run: |
           flutter create . --project-name intelligent_stock_engine --org com.investiq --platforms android
 
-      - name: Fix Kotlin + Gradle versions
+      - name: Fix Gradle + Kotlin + AGP versions
         working-directory: flutter_app
         run: |
-          # Force compatible Kotlin version (fixes 1.7.1 vs 1.9.x mismatch)
+          # 1. Force Gradle Wrapper to 8.7
+          if [ -f android/gradle/wrapper/gradle-wrapper.properties ]; then
+            sed -i 's|distributionUrl=.*|distributionUrl=https\\://services.gradle.org/distributions/gradle-8.7-all.zip|' android/gradle/wrapper/gradle-wrapper.properties
+            echo "===== gradle-wrapper.properties ====="
+            cat android/gradle/wrapper/gradle-wrapper.properties
+          fi
+
+          # 2. Force Kotlin 1.9.24 + AGP 8.5.1 in settings.gradle
           if [ -f android/settings.gradle ]; then
             sed -i 's/id "org.jetbrains.kotlin.android" version ".*"/id "org.jetbrains.kotlin.android" version "1.9.24"/' android/settings.gradle || true
             sed -i "s/id 'org.jetbrains.kotlin.android' version '.*'/id 'org.jetbrains.kotlin.android' version '1.9.24'/" android/settings.gradle || true
+            sed -i 's/id "com.android.application" version ".*"/id "com.android.application" version "8.5.1"/' android/settings.gradle || true
+            sed -i "s/id 'com.android.application' version '.*'/id 'com.android.application' version '8.5.1'/" android/settings.gradle || true
+            echo "===== android/settings.gradle ====="
+            cat android/settings.gradle
           fi
 
+          # 3. Old-style build.gradle kotlin_version (if present)
           if [ -f android/build.gradle ]; then
             sed -i "s/ext.kotlin_version = '.*'/ext.kotlin_version = '1.9.24'/" android/build.gradle || true
             sed -i 's/ext.kotlin_version = ".*"/ext.kotlin_version = "1.9.24"/' android/build.gradle || true
           fi
-
-          # Bump Android Gradle Plugin if present in settings.gradle
-          if [ -f android/settings.gradle ]; then
-            sed -i 's/id "com.android.application" version ".*"/id "com.android.application" version "8.3.2"/' android/settings.gradle || true
-            sed -i "s/id 'com.android.application' version '.*'/id 'com.android.application' version '8.3.2'/" android/settings.gradle || true
-          fi
-
-          echo "===== android/settings.gradle ====="
-          cat android/settings.gradle || true
-          echo "===== android/build.gradle ====="
-          cat android/build.gradle || true
 
       - name: Install dependencies
         working-directory: flutter_app

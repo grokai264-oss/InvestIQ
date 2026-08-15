@@ -22,11 +22,12 @@ except Exception:
     kotak = None
 
 
-@asynccontextmanager
-async def lifespan(app: FastAPI):
-    if settings.kotak_configured and kotak is not None:
-        try:
-            ok = kotak.connect(
+def _try_kotak_connect() -> bool:
+    if not settings.kotak_configured or kotak is None:
+        return False
+    try:
+        return bool(
+            kotak.connect(
                 consumer_key=settings.KOTAK_CONSUMER_KEY,
                 mobile=settings.KOTAK_MOBILE,
                 ucc=settings.KOTAK_UCC,
@@ -34,9 +35,19 @@ async def lifespan(app: FastAPI):
                 totp_secret=settings.KOTAK_TOTP_SECRET,
                 environment=settings.KOTAK_ENVIRONMENT,
             )
-            logger.info(f"Kotak connect on startup: {ok}")
-        except Exception as e:
-            logger.warning(f"Kotak connect skipped: {e}")
+        )
+    except Exception as e:
+        logger.warning(f"Kotak connect failed: {e}")
+        return False
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    if settings.kotak_configured and kotak is not None:
+        ok = _try_kotak_connect()
+        logger.info(f"Kotak connect on startup: {ok}")
+        if not ok and kotak is not None:
+            logger.warning(f"Kotak last_error: {getattr(kotak, 'last_error', None)}")
     else:
         logger.warning("Kotak env not complete — rankings use model data")
     yield
@@ -45,7 +56,7 @@ async def lifespan(app: FastAPI):
 app = FastAPI(
     title="InvestIQ API",
     description="Analytical only. NEVER places buy/sell orders.",
-    version="1.2.0",
+    version="1.3.0",
     lifespan=lifespan,
 )
 
@@ -120,7 +131,8 @@ class HealthResponse(BaseModel):
     message: str
     kotak_configured: bool
     kotak_connected: bool
-    version: str = "1.2.0"
+    kotak_error: Optional[str] = None
+    version: str = "1.3.0"
 
 
 _MODEL = pd.DataFrame([
@@ -203,15 +215,19 @@ def _kotak_connected() -> bool:
 @app.get("/", response_model=HealthResponse)
 async def health():
     connected = _kotak_connected()
+    err = None
+    if kotak is not None:
+        err = getattr(kotak, "last_error", None)
     return HealthResponse(
         status="operational",
         message=(
             "Kotak Neo linked (read-only)."
             if connected
-            else "API up. Rankings available. Kotak live session optional."
+            else "API up. Rankings available. Check kotak_error if portfolio needed."
         ),
         kotak_configured=settings.kotak_configured,
         kotak_connected=connected,
+        kotak_error=err,
     )
 
 
@@ -227,15 +243,39 @@ async def market_indices():
 async def portfolio_summary():
     """Read-only holdings snapshot. No trading."""
     if not _kotak_connected():
+        # One reconnect attempt (session may have expired or startup failed)
+        _try_kotak_connect()
+    if not _kotak_connected():
+        err = getattr(kotak, "last_error", None) if kotak else "client missing"
         return PortfolioSummaryResponse(
             linked=False,
-            message="Kotak Neo not linked on server. Rankings still work; portfolio needs live session.",
+            message=f"Kotak not linked. {err or 'Check Render env vars (mobile +91, TOTP Setup Key, MPIN, UCC, access token).'}",
             holdings=[],
         )
+
+    rows = []
+    try:
+        rows = kotak.normalized_holdings()
+    except Exception as e:
+        logger.warning(f"holdings error: {e}")
+
+    holdings = [HoldingItem(**r) for r in rows]
+    total_value = sum(float(r.get("mkt_value") or r["ltp"] * r["quantity"]) for r in rows)
+    total_pnl = sum(float(r["pnl"]) for r in rows)
+    cost = total_value - total_pnl
+    total_pnl_pct = (total_pnl / cost * 100.0) if cost else 0.0
+
     return PortfolioSummaryResponse(
         linked=True,
-        message="Session active. Holdings feed depends on SDK methods; empty if not available.",
-        holdings=[],
+        message=(
+            f"{len(holdings)} holdings loaded (read-only)."
+            if holdings
+            else "Session linked but no CNC holdings returned."
+        ),
+        total_value=round(total_value, 2),
+        total_pnl=round(total_pnl, 2),
+        total_pnl_pct=round(total_pnl_pct, 2),
+        holdings=holdings,
     )
 
 

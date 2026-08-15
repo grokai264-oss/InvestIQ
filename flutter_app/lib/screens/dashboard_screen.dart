@@ -6,6 +6,8 @@ import '../theme/app_theme.dart';
 import '../widgets/recommendation_card.dart';
 import '../widgets/disclaimer_banner.dart';
 import '../widgets/shimmer_loading.dart';
+import '../widgets/regime_banner.dart';
+import '../widgets/indices_strip.dart';
 import 'stock_detail_screen.dart';
 
 enum _ViewState { loading, error, empty, loaded }
@@ -20,6 +22,7 @@ class DashboardScreen extends StatefulWidget {
 class _DashboardScreenState extends State<DashboardScreen> {
   final ApiService _api = ApiService();
   List<Recommendation> _recs = [];
+  List<Map<String, dynamic>> _indices = [];
   _ViewState _view = _ViewState.loading;
   BackendState? _backendState;
   String _errorMessage = '';
@@ -36,10 +39,16 @@ class _DashboardScreenState extends State<DashboardScreen> {
       _view = _ViewState.loading;
     });
     try {
-      final list = await _api.getTopRecommendations(timeframe: _timeframe);
+      final results = await Future.wait([
+        _api.getTopRecommendations(timeframe: _timeframe),
+        _api.getIndices(),
+      ]);
       if (!mounted) return;
+      final list = results[0] as List<Recommendation>;
+      final idx = results[1] as List<Map<String, dynamic>>;
       setState(() {
         _recs = list;
+        _indices = idx;
         _backendState = BackendState.online;
         _view = list.isEmpty ? _ViewState.empty : _ViewState.loaded;
       });
@@ -71,7 +80,11 @@ class _DashboardScreenState extends State<DashboardScreen> {
           child: CustomScrollView(
             physics: const AlwaysScrollableScrollPhysics(),
             slivers: [
-              SliverToBoxAdapter(child: _buildHeader()),
+              SliiverHeader(),
+              if (_indices.isNotEmpty)
+                SliverToBoxAdapter(child: RegimeBanner(indices: _indices)),
+              if (_indices.isNotEmpty)
+                SliverToBoxAdapter(child: IndicesStrip(indices: _indices)),
               const DisclaimerBanner(),
               SliverToBoxAdapter(child: _buildTimeframeChips()),
               if (_view == _ViewState.loading)
@@ -80,7 +93,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   sliver: SliverToBoxAdapter(child: ShimmerRecommendationList()),
                 )
               else if (_view == _ViewState.error)
-                SliverFillRemaining(hasScrollBody: false, child: _buildError())
+                SliiverError()
               else if (_view == _ViewState.empty)
                 SliverFillRemaining(hasScrollBody: false, child: _buildEmpty())
               else
@@ -111,6 +124,11 @@ class _DashboardScreenState extends State<DashboardScreen> {
     );
   }
 
+  // ignore: non_constant_identifier_names
+  Widget SliiverHeader() => SliverToBoxAdapter(child: _buildHeader());
+  // ignore: non_constant_identifier_names
+  Widget SliiverError() => SliverFillRemaining(hasScrollBody: false, child: _buildError());
+
   Widget _buildHeader() {
     return Padding(
       padding: const EdgeInsets.fromLTRB(20, 16, 20, 8),
@@ -135,7 +153,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  'InvestIQ',
+                  'InvestIQ Desk',
                   style: Theme.of(context).textTheme.headlineSmall?.copyWith(
                         fontWeight: FontWeight.w700,
                       ),
@@ -160,7 +178,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
     String label;
     if (_backendState == BackendState.online) {
       dotColor = AppTheme.green;
-      label = 'Live';
+      label = 'Live multi-factor';
     } else if (_backendState == BackendState.waking) {
       dotColor = AppTheme.yellow;
       label = 'Waking up…';

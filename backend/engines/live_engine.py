@@ -1,4 +1,6 @@
-"""Live multi-factor engine v2.5 — regime weights, VWAP, momentum, parallel rank."""
+"""Live multi-factor engine v2.6 — regime weights, VWAP, momentum, parallel rank.
+Honest labeling: FII/DII is market-wide (not per-stock). Confidence is score-distance (not calibrated hit-rate yet).
+"""
 from __future__ import annotations
 
 import math
@@ -22,9 +24,18 @@ from .advanced_factors import (
     friction_note,
 )
 
+# Expanded liquid universe (Desk rankings). Full NSE search uses equity_universe.json (2235).
 DEFAULT_UNIVERSE = [
     "RELIANCE", "TCS", "INFY", "HDFCBANK", "ICICIBANK",
-    "SBIN", "BHARTIARTL", "ITC", "KOTAKBANK", "LT", "BEL",
+    "SBIN", "BHARTIARTL", "ITC", "KOTAKBANK", "LT",
+    "AXISBANK", "HINDUNILVR", "BAJFINANCE", "ASIANPAINT", "MARUTI",
+    "TITAN", "SUNPHARMA", "WIPRO", "ULTRACEMCO", "NESTLEIND",
+    "POWERGRID", "NTPC", "ONGC", "COALINDIA", "TATASTEEL",
+    "JSWSTEEL", "ADANIENT", "ADANIPORTS", "BAJAJFINSV", "TECHM",
+    "HCLTECH", "M&M", "INDUSINDBK", "CIPLA", "DRREDDY",
+    "EICHERMOT", "GRASIM", "HEROMOTOCO", "BPCL", "HINDPETRO",
+    "HPCL", "IOC", "BEL", "SUZLON", "TATAMOTORS",
+    "VEDL", "IRFC", "RECLTD", "PFC", "HAL", "BHEL",
 ]
 
 
@@ -106,10 +117,11 @@ class LiveRecommendationEngine:
             rationale.append(f"RVOL {rvol:.2f}x")
         if score_delivery >= 70:
             rationale.append(f"Delivery {delivery:.1f}%")
+        # Honest: FII/DII is market-wide, not stock-specific
         if fii_net > 0:
-            rationale.append(f"FII net +Rs {fii_net:.0f} Cr")
+            rationale.append(f"Market-wide FII net +Rs {fii_net:.0f} Cr (not stock-specific)")
         elif fii_net < 0:
-            rationale.append(f"FII net Rs {fii_net:.0f} Cr")
+            rationale.append(f"Market-wide FII net Rs {fii_net:.0f} Cr (not stock-specific)")
         if score_lvol >= 75 and regime == "high":
             rationale.append(f"Low realized vol {vol20:.0f}% defensive")
         if score_value >= 80:
@@ -135,7 +147,7 @@ class LiveRecommendationEngine:
                 "score_momentum": round(score_mom, 1),
                 "score_low_vol": round(score_lvol, 1),
                 "score_delivery": round(score_delivery, 1),
-                "score_fii": round(score_fii, 1),
+                "score_fii_market": round(score_fii, 1),
                 "score_value": round(score_value, 1),
             },
             "raw": {
@@ -147,14 +159,14 @@ class LiveRecommendationEngine:
                 "roc_126": round(roc_126, 2),
                 "realized_vol_20": None if math.isnan(vol20) else round(vol20, 2),
                 "delivery_pct": round(delivery, 2),
-                "fii_net_cr": fii_net,
+                "fii_net_cr_marketwide": fii_net,
                 "india_vix": round(vix, 2),
                 "regime": regime,
                 "pe": fund.get("pe"),
             },
             "rationale": rationale,
             "data_source": "live",
-            "engine_version": "2.5.0",
+            "engine_version": "2.6.0",
         }
 
     def rank_universe(

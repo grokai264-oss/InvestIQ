@@ -81,24 +81,24 @@ class _DashboardScreenState extends State<DashboardScreen> {
           child: CustomScrollView(
             physics: const AlwaysScrollableScrollPhysics(),
             slivers: [
-              SliiverHeader(),
+              SliverToBoxAdapter(child: _buildHeader()),
               if (_indices.isNotEmpty)
-                SliiverToBoxAdapter(child: RegimeBanner(indices: _indices)),
+                SliiverRegime(),
               if (_indices.isNotEmpty)
-                SliiverToBoxAdapter(child: IndicesStrip(indices: _indices)),
+                SliverToBoxAdapter(child: IndicesStrip(indices: _indices)),
               const DisclaimerBanner(),
-              SliiverToBoxAdapter(child: _buildTimeframeChips()),
+              SliverToBoxAdapter(child: _buildTimeframeChips()),
               if (_view == _ViewState.loading)
                 SliverPadding(
                   padding: const EdgeInsets.fromLTRB(16, 8, 16, 32),
                   sliver: SliverToBoxAdapter(child: ShimmerRecommendationList()),
                 )
               else if (_view == _ViewState.error)
-                SliiverError()
+                SliverFillRemaining(hasScrollBody: false, child: _buildError())
               else if (_view == _ViewState.empty)
                 SliverFillRemaining(hasScrollBody: false, child: _buildEmpty())
               else
-                SliiverPadding(
+                SliverPadding(
                   padding: const EdgeInsets.fromLTRB(16, 8, 16, 32),
                   sliver: SliverList(
                     delegate: SliverChildBuilderDelegate(
@@ -126,15 +126,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
   }
 
   // ignore: non_constant_identifier_names
-  Widget SliiverHeader() => SliverToBoxAdapter(child: _buildHeader());
-  // ignore: non_constant_identifier_names
-  Widget SliiverError() => SliverFillRemaining(hasScrollBody: false, child: _buildError());
-  // ignore: non_constant_identifier_names
-  Widget SliiverToBoxAdapter({required Widget child}) =>
-      SliverToBoxAdapter(child: child);
-  // ignore: non_constant_identifier_names
-  Widget SliiverPadding({required EdgeInsets padding, required Widget sliver}) =>
-      SliverPadding(padding: padding, sliver: sliver);
+  Widget SliiverRegime() => SliverToBoxAdapter(child: RegimeBanner(indices: _indices));
 
   Widget _buildHeader() {
     return Padding(

@@ -11,6 +11,32 @@ class AppTheme {
   static const Color yellow = Color(0xFFF59E0B);
   static const Color textPrimary = Color(0xFFF1F5F9);
   static const Color textSecondary = Color(0xFF94A3B8);
+  static const Color textMuted = Color(0xFF64748B);
+
+  static const double radiusSm = 10;
+  static const double radiusMd = 14;
+  static const double radiusLg = 20;
+
+  static const LinearGradient brandGradient = LinearGradient(
+    begin: Alignment.topLeft,
+    end: Alignment.bottomRight,
+    colors: [Color(0xFF3B82F6), Color(0xFF6366F1)],
+  );
+
+  static List<BoxShadow> get cardShadow => [
+        BoxShadow(
+          color: Colors.black.withOpacity(0.28),
+          blurRadius: 18,
+          offset: const Offset(0, 8),
+        ),
+      ];
+
+  static BoxDecoration cardDecoration({Color? borderColor}) => BoxDecoration(
+        color: card,
+        borderRadius: BorderRadius.circular(radiusMd),
+        border: Border.all(color: borderColor ?? cardBorder),
+        boxShadow: cardShadow,
+      );
 
   static ThemeData get dark {
     return ThemeData(

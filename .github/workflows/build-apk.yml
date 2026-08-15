@@ -34,27 +34,40 @@ jobs:
         run: |
           flutter create . --project-name intelligent_stock_engine --org com.investiq --platforms android
 
+      - name: Ensure Android INTERNET permission
+        working-directory: flutter_app
+        run: |
+          MANIFEST="android/app/src/main/AndroidManifest.xml"
+          if [ -f "$MANIFEST" ]; then
+            # Ensure INTERNET permission exists (required for HTTPS to Render)
+            if ! grep -q 'android.permission.INTERNET' "$MANIFEST"; then
+              sed -i 's|<manifest |<manifest |' "$MANIFEST"
+              sed -i '/<manifest /a\    <uses-permission android:name="android.permission.INTERNET"/>' "$MANIFEST"
+            fi
+            if ! grep -q 'android.permission.ACCESS_NETWORK_STATE' "$MANIFEST"; then
+              sed -i '/android.permission.INTERNET/a\    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE"/>' "$MANIFEST"
+            fi
+            echo "===== AndroidManifest.xml ====="
+            cat "$MANIFEST"
+          else
+            echo "ERROR: AndroidManifest.xml not found"
+            exit 1
+          fi
+
       - name: Fix Gradle + Kotlin + AGP versions
         working-directory: flutter_app
         run: |
-          # 1. Force Gradle Wrapper to 8.7
           if [ -f android/gradle/wrapper/gradle-wrapper.properties ]; then
             sed -i 's|distributionUrl=.*|distributionUrl=https\\://services.gradle.org/distributions/gradle-8.7-all.zip|' android/gradle/wrapper/gradle-wrapper.properties
-            echo "===== gradle-wrapper.properties ====="
-            cat android/gradle/wrapper/gradle-wrapper.properties
           fi
 
-          # 2. Force Kotlin 1.9.24 + AGP 8.5.1 in settings.gradle
           if [ -f android/settings.gradle ]; then
             sed -i 's/id "org.jetbrains.kotlin.android" version ".*"/id "org.jetbrains.kotlin.android" version "1.9.24"/' android/settings.gradle || true
             sed -i "s/id 'org.jetbrains.kotlin.android' version '.*'/id 'org.jetbrains.kotlin.android' version '1.9.24'/" android/settings.gradle || true
             sed -i 's/id "com.android.application" version ".*"/id "com.android.application" version "8.5.1"/' android/settings.gradle || true
             sed -i "s/id 'com.android.application' version '.*'/id 'com.android.application' version '8.5.1'/" android/settings.gradle || true
-            echo "===== android/settings.gradle ====="
-            cat android/settings.gradle
           fi
 
-          # 3. Old-style build.gradle kotlin_version (if present)
           if [ -f android/build.gradle ]; then
             sed -i "s/ext.kotlin_version = '.*'/ext.kotlin_version = '1.9.24'/" android/build.gradle || true
             sed -i 's/ext.kotlin_version = ".*"/ext.kotlin_version = "1.9.24"/' android/build.gradle || true

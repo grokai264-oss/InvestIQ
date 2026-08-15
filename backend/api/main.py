@@ -25,24 +25,27 @@ except Exception:
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     if settings.kotak_configured and kotak is not None:
-        ok = kotak.connect(
-            consumer_key=settings.KOTAK_CONSUMER_KEY,
-            mobile=settings.KOTAK_MOBILE,
-            ucc=settings.KOTAK_UCC,
-            mpin=settings.KOTAK_MPIN,
-            totp_secret=settings.KOTAK_TOTP_SECRET,
-            environment=settings.KOTAK_ENVIRONMENT,
-        )
-        logger.info(f"Kotak connect on startup: {ok}")
+        try:
+            ok = kotak.connect(
+                consumer_key=settings.KOTAK_CONSUMER_KEY,
+                mobile=settings.KOTAK_MOBILE,
+                ucc=settings.KOTAK_UCC,
+                mpin=settings.KOTAK_MPIN,
+                totp_secret=settings.KOTAK_TOTP_SECRET,
+                environment=settings.KOTAK_ENVIRONMENT,
+            )
+            logger.info(f"Kotak connect on startup: {ok}")
+        except Exception as e:
+            logger.warning(f"Kotak connect skipped: {e}")
     else:
-        logger.warning("Kotak env vars not fully set — rankings use internal model data")
+        logger.warning("Kotak env not complete — rankings use model data")
     yield
 
 
 app = FastAPI(
     title="InvestIQ API",
     description="Analytical only. NEVER places buy/sell orders.",
-    version="1.1.0",
+    version="1.2.0",
     lifespan=lifespan,
 )
 
@@ -79,15 +82,28 @@ class TopPicksResponse(BaseModel):
     disclaimer: str = "Analytical only. Never places orders."
 
 
+class IndexItem(BaseModel):
+    name: str
+    symbol: str
+    last: float
+    change_pct: float
+    bias: str  # bullish | neutral | bearish
+
+
+class IndicesResponse(BaseModel):
+    as_of: str
+    indices: List[IndexItem]
+    note: str = "Indicative model values until live index feed is wired."
+
+
 class HealthResponse(BaseModel):
     status: str
     message: str
     kotak_configured: bool
     kotak_connected: bool
-    version: str = "1.1.0"
+    version: str = "1.2.0"
 
 
-# Internal ranking table (used until live factor DB is fully wired on Render)
 _MODEL = pd.DataFrame([
     {"symbol": "RELIANCE", "final_score": 78.5, "close": 2950.0, "atr_14": 45.0,
      "score_rsi": 72, "score_ema": 85, "score_rvol": 68, "score_delivery": 74, "score_bulk": 60},
@@ -103,7 +119,20 @@ _MODEL = pd.DataFrame([
      "score_rsi": 62, "score_ema": 70, "score_rvol": 58, "score_delivery": 66, "score_bulk": 55},
     {"symbol": "ITC", "final_score": 61.0, "close": 450.0, "atr_14": 8.0,
      "score_rsi": 55, "score_ema": 60, "score_rvol": 50, "score_delivery": 58, "score_bulk": 48},
+    {"symbol": "BHARTIARTL", "final_score": 73.0, "close": 1550.0, "atr_14": 25.0,
+     "score_rsi": 68, "score_ema": 75, "score_rvol": 62, "score_delivery": 70, "score_bulk": 65},
+    {"symbol": "LT", "final_score": 66.0, "close": 3600.0, "atr_14": 50.0,
+     "score_rsi": 60, "score_ema": 68, "score_rvol": 55, "score_delivery": 58, "score_bulk": 52},
+    {"symbol": "KOTAKBANK", "final_score": 58.0, "close": 1750.0, "atr_14": 30.0,
+     "score_rsi": 52, "score_ema": 55, "score_rvol": 48, "score_delivery": 50, "score_bulk": 45},
 ])
+
+_INDICES = [
+    {"name": "Nifty 50", "symbol": "NIFTY", "last": 24580.0, "change_pct": 0.42, "bias": "bullish"},
+    {"name": "Sensex", "symbol": "SENSEX", "last": 80720.0, "change_pct": 0.38, "bias": "bullish"},
+    {"name": "Bank Nifty", "symbol": "BANKNIFTY", "last": 51240.0, "change_pct": -0.15, "bias": "neutral"},
+    {"name": "India VIX", "symbol": "INDIAVIX", "last": 13.8, "change_pct": -2.1, "bias": "bullish"},
+]
 
 
 def _to_rec(row, timeframe: str, data_source: str) -> RecommendationResponse:
@@ -160,10 +189,19 @@ async def health():
         message=(
             "Kotak Neo linked (read-only)."
             if connected
-            else "API up. Set Kotak env vars on Render to link live session."
+            else "API up. Rankings available. Kotak live session optional."
         ),
         kotak_configured=settings.kotak_configured,
         kotak_connected=connected,
+    )
+
+
+@app.get("/api/v1/indices", response_model=IndicesResponse)
+async def market_indices():
+    """General market indices for dashboard header."""
+    return IndicesResponse(
+        as_of=datetime.now(timezone.utc).isoformat(),
+        indices=[IndexItem(**x) for x in _INDICES],
     )
 
 

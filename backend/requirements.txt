@@ -12,6 +12,4 @@ requests>=2.31.0
 aiohttp>=3.9.0
 websockets>=12.0
 
-# Note: Kotak neo_api_client is NOT installed via pip on Render
-# (their GitHub package often fails to build). API still starts;
-# rankings work; live Kotak session is optional.
+# Kotak neo_api_client optional on Render

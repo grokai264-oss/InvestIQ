@@ -55,7 +55,6 @@ class Recommendation {
   bool get isBuy => action == 'BUY' || action == 'STRONG BUY';
   bool get isSell => action == 'SELL';
 
-  /// Human labels for institutional factor radar
   static const factorLabels = {
     'score_rsi': 'RSI',
     'score_ema': 'Trend',
@@ -65,7 +64,8 @@ class Recommendation {
     'score_momentum': 'Momentum',
     'score_low_vol': 'LowVol',
     'score_delivery': 'Delivery',
-    'score_fii': 'FII',
+    'score_fii': 'FII (mkt)',
+    'score_fii_market': 'FII (mkt)',
     'score_value': 'Value',
   };
 

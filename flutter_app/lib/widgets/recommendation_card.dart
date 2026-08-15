@@ -19,38 +19,81 @@ class RecommendationCard extends StatelessWidget {
       onTap: onTap,
       borderRadius: BorderRadius.circular(AppTheme.radiusMd),
       child: Container(
-        margin: const EdgeInsets.only(bottom: 12),
-        padding: const EdgeInsets.all(16),
+        margin: const EdgeInsets.only(bottom: 10),
+        padding: const EdgeInsets.fromLTRB(14, 14, 14, 12),
         decoration: AppTheme.cardDecoration(),
-        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Row(children: [
-            Expanded(child: Text(rec.symbol, style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 16))),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-              decoration: BoxDecoration(color: _actionColor.withOpacity(0.15), borderRadius: BorderRadius.circular(20)),
-              child: Text(rec.action, style: TextStyle(color: _actionColor, fontWeight: FontWeight.w700, fontSize: 11)),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    rec.symbol,
+                    style: const TextStyle(
+                      fontWeight: FontWeight.w800,
+                      fontSize: 15,
+                      letterSpacing: 0.3,
+                    ),
+                  ),
+                ),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: _actionColor.withOpacity(0.12),
+                    borderRadius: BorderRadius.circular(6),
+                    border: Border.all(color: _actionColor.withOpacity(0.35)),
+                  ),
+                  child: Text(
+                    rec.action,
+                    style: TextStyle(
+                      color: _actionColor,
+                      fontWeight: FontWeight.w800,
+                      fontSize: 10,
+                      letterSpacing: 0.4,
+                    ),
+                  ),
+                ),
+              ],
             ),
-          ]),
-          const SizedBox(height: 12),
-          Row(children: [
-            _m('Score', rec.finalScore.toStringAsFixed(1)),
-            _m('Confidence', '${(rec.confidenceScore * 100).round()}%'),
-            _m('Entry', rec.entryPrice?.toStringAsFixed(1) ?? '—'),
-          ]),
-          if (rec.rationale.isNotEmpty) ...[
-            const SizedBox(height: 10),
-            Text(rec.rationale.first, style: const TextStyle(color: AppTheme.textSecondary, fontSize: 12, height: 1.35)),
+            const SizedBox(height: 12),
+            Row(
+              children: [
+                _metric('Score', rec.finalScore.toStringAsFixed(1), AppTheme.accent),
+                _metric('Conv.', '${(rec.confidenceScore * 100).round()}%', AppTheme.textPrimary),
+                _metric('Entry', rec.entryPrice != null ? '₹${rec.entryPrice!.toStringAsFixed(0)}' : '—', AppTheme.textPrimary),
+                _metric(rec.timeframe, '', AppTheme.textMuted),
+              ],
+            ),
+            if (rec.rationale.isNotEmpty) ...[
+              const SizedBox(height: 10),
+              Text(
+                rec.rationale.first,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(
+                  color: AppTheme.textSecondary,
+                  fontSize: 12,
+                  height: 1.35,
+                ),
+              ),
+            ],
           ],
-        ]),
+        ),
       ),
     );
   }
 
-  Widget _m(String k, String v) => Expanded(
-        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Text(k, style: const TextStyle(color: AppTheme.textMuted, fontSize: 11)),
-          const SizedBox(height: 2),
-          Text(v, style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 14)),
-        ]),
+  Widget _metric(String k, String v, Color vc) => Expanded(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(k, style: const TextStyle(color: AppTheme.textMuted, fontSize: 10)),
+            if (v.isNotEmpty) ...[
+              const SizedBox(height: 2),
+              Text(v, style: TextStyle(fontWeight: FontWeight.w700, fontSize: 14, color: vc)),
+            ],
+          ],
+        ),
       );
 }

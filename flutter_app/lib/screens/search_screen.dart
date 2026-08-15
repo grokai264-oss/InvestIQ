@@ -93,7 +93,7 @@ class _SearchScreenState extends State<SearchScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Search equities')),
+      appBar: AppBar(title: const Text('Search InvestIQ')),
       body: Column(
         children: [
           Padding(
@@ -106,7 +106,7 @@ class _SearchScreenState extends State<SearchScreen> {
               style: const TextStyle(color: AppTheme.textPrimary),
               decoration: InputDecoration(
                 hintText: _catalogReady
-                    ? 'BEL, SUZLON, HPCL, any NSE symbol…'
+                    ? 'Company, sector or theme…'
                     : 'Loading NSE master…',
                 hintStyle: const TextStyle(color: AppTheme.textMuted),
                 prefixIcon:
@@ -147,12 +147,7 @@ class _SearchScreenState extends State<SearchScreen> {
                 ? const Center(
                     child: CircularProgressIndicator(color: AppTheme.accent))
                 : _hits.isEmpty
-                    ? const Center(
-                        child: Text(
-                          'No match. Try exact NSE symbol (e.g. SUZLON).',
-                          style: TextStyle(color: AppTheme.textSecondary),
-                        ),
-                      )
+                    ? _emptyState()
                     : ListView.separated(
                         padding: const EdgeInsets.fromLTRB(12, 12, 12, 24),
                         itemCount: _hits.length,
@@ -211,6 +206,89 @@ class _SearchScreenState extends State<SearchScreen> {
           ),
         ],
       ),
+    );
+  }
+
+  Widget _emptyState() {
+    final q = _ctrl.text.trim();
+    if (q.isNotEmpty) {
+      return const Center(
+        child: Text(
+          'No match. Try exact NSE symbol (e.g. SUZLON).',
+          style: TextStyle(color: AppTheme.textSecondary),
+        ),
+      );
+    }
+    const popular = ['BEL', 'Defence', 'HDFCBANK', 'TCS', 'RELIANCE', 'SUZLON'];
+    const tryAsk = [
+      'Top Defence companies',
+      'BEL calculation',
+      'Best momentum stocks',
+      'NIFTY 500 structure',
+    ];
+    return ListView(
+      padding: const EdgeInsets.fromLTRB(20, 16, 20, 32),
+      children: [
+        const Text(
+          'POPULAR',
+          style: TextStyle(
+            color: AppTheme.textMuted,
+            fontSize: 11,
+            fontWeight: FontWeight.w600,
+            letterSpacing: 1,
+          ),
+        ),
+        const SizedBox(height: 10),
+        Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          children: popular.map((s) {
+            return ActionChip(
+              label: Text(s),
+              backgroundColor: AppTheme.surface,
+              side: const BorderSide(color: AppTheme.border),
+              labelStyle: const TextStyle(color: AppTheme.textPrimary, fontSize: 12),
+              onPressed: () {
+                _ctrl.text = s;
+                _onQuery(s);
+              },
+            );
+          }).toList(),
+        ),
+        const SizedBox(height: 24),
+        const Text(
+          'TRY ASKING',
+          style: TextStyle(
+            color: AppTheme.textMuted,
+            fontSize: 11,
+            fontWeight: FontWeight.w600,
+            letterSpacing: 1,
+          ),
+        ),
+        const SizedBox(height: 10),
+        ...tryAsk.map(
+          (s) => ListTile(
+            dense: true,
+            contentPadding: EdgeInsets.zero,
+            leading: const Icon(Icons.auto_awesome, size: 18, color: AppTheme.accent),
+            title: Text(s, style: const TextStyle(fontSize: 14)),
+            onTap: () {
+              final parts = s.split(' ');
+              final token = parts.firstWhere(
+                (w) => w.length >= 3 && w.toUpperCase() == w,
+                orElse: () => parts.last,
+              );
+              _ctrl.text = token;
+              _onQuery(token);
+            },
+          ),
+        ),
+        const SizedBox(height: 16),
+        const Text(
+          'Search routes into company research and calculation audit.',
+          style: TextStyle(color: AppTheme.textMuted, fontSize: 11, height: 1.4),
+        ),
+      ],
     );
   }
 }

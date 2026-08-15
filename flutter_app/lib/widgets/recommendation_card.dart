@@ -2,98 +2,89 @@ import 'package:flutter/material.dart';
 import '../models/recommendation.dart';
 import '../theme/app_theme.dart';
 
+/// Compact analytical row for lists that still need a card (e.g. search).
+/// Market Radar uses inline rows instead — no giant BUY badges.
 class RecommendationCard extends StatelessWidget {
   final Recommendation rec;
   final VoidCallback? onTap;
   const RecommendationCard({super.key, required this.rec, this.onTap});
 
-  Color get _actionColor {
-    if (rec.action.contains('BUY')) return AppTheme.green;
-    if (rec.action == 'SELL') return AppTheme.red;
-    return AppTheme.yellow;
+  String get _setup {
+    if (rec.finalScore >= 75) return 'Strong';
+    if (rec.finalScore >= 60) return 'Watch';
+    if (rec.finalScore >= 40) return 'Neutral';
+    return 'Weak';
+  }
+
+  Color get _setupColor {
+    if (rec.finalScore >= 75) return AppTheme.green;
+    if (rec.finalScore >= 60) return AppTheme.accent;
+    if (rec.finalScore >= 40) return AppTheme.textMuted;
+    return AppTheme.red;
   }
 
   @override
   Widget build(BuildContext context) {
+    final factors = rec.factors.entries.toList()
+      ..sort((a, b) => b.value.compareTo(a.value));
+    final top = factors.take(2).map((e) {
+      return Recommendation.factorLabels[e.key] ?? e.key.replaceAll('score_', '');
+    }).toList();
+
     return InkWell(
       onTap: onTap,
       borderRadius: BorderRadius.circular(AppTheme.radiusMd),
       child: Container(
-        margin: const EdgeInsets.only(bottom: 10),
-        padding: const EdgeInsets.fromLTRB(14, 14, 14, 12),
+        margin: const EdgeInsets.only(bottom: 8),
+        padding: const EdgeInsets.fromLTRB(14, 14, 12, 14),
         decoration: AppTheme.cardDecoration(),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+        child: Row(
           children: [
-            Row(
-              children: [
-                Expanded(
-                  child: Text(
-                    rec.symbol,
-                    style: const TextStyle(
-                      fontWeight: FontWeight.w800,
-                      fontSize: 15,
-                      letterSpacing: 0.3,
-                    ),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Text(
+                        rec.symbol,
+                        style: const TextStyle(
+                          fontWeight: FontWeight.w700,
+                          fontSize: 14,
+                          letterSpacing: 0.2,
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+                        decoration: BoxDecoration(
+                          color: _setupColor.withOpacity(0.12),
+                          borderRadius: BorderRadius.circular(4),
+                        ),
+                        child: Text(
+                          _setup,
+                          style: TextStyle(
+                            color: _setupColor,
+                            fontSize: 10,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                      ),
+                    ],
                   ),
-                ),
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
-                  decoration: BoxDecoration(
-                    color: _actionColor.withOpacity(0.12),
-                    borderRadius: BorderRadius.circular(6),
-                    border: Border.all(color: _actionColor.withOpacity(0.35)),
+                  const SizedBox(height: 6),
+                  Text(
+                    '${rec.finalScore.toStringAsFixed(1)}  ·  ${(rec.confidenceScore * 100).round()}% conf'
+                    '${top.isNotEmpty ? '  ·  ${top.join('  ·  ')}' : ''}',
+                    style: const TextStyle(color: AppTheme.textSecondary, fontSize: 12),
                   ),
-                  child: Text(
-                    rec.action,
-                    style: TextStyle(
-                      color: _actionColor,
-                      fontWeight: FontWeight.w800,
-                      fontSize: 10,
-                      letterSpacing: 0.4,
-                    ),
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 12),
-            Row(
-              children: [
-                _metric('Score', rec.finalScore.toStringAsFixed(1), AppTheme.accent),
-                _metric('Conv.', '${(rec.confidenceScore * 100).round()}%', AppTheme.textPrimary),
-                _metric('Entry', rec.entryPrice != null ? '₹${rec.entryPrice!.toStringAsFixed(0)}' : '—', AppTheme.textPrimary),
-                _metric(rec.timeframe, '', AppTheme.textMuted),
-              ],
-            ),
-            if (rec.rationale.isNotEmpty) ...[
-              const SizedBox(height: 10),
-              Text(
-                rec.rationale.first,
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
-                style: const TextStyle(
-                  color: AppTheme.textSecondary,
-                  fontSize: 12,
-                  height: 1.35,
-                ),
+                ],
               ),
-            ],
+            ),
+            const Icon(Icons.chevron_right, size: 18, color: AppTheme.textMuted),
           ],
         ),
       ),
     );
   }
-
-  Widget _metric(String k, String v, Color vc) => Expanded(
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(k, style: const TextStyle(color: AppTheme.textMuted, fontSize: 10)),
-            if (v.isNotEmpty) ...[
-              const SizedBox(height: 2),
-              Text(v, style: TextStyle(fontWeight: FontWeight.w700, fontSize: 14, color: vc)),
-            ],
-          ],
-        ),
-      );
 }

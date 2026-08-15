@@ -3,7 +3,6 @@ from __future__ import annotations
 
 from typing import Dict, List
 
-# symbol -> display name (subset; expandable)
 EQUITY_MAP: Dict[str, str] = {
     "RELIANCE": "Reliance Industries",
     "TCS": "Tata Consultancy Services",
@@ -40,7 +39,9 @@ EQUITY_MAP: Dict[str, str] = {
     "BAJAJFINSV": "Bajaj Finserv",
     "M&M": "Mahindra & Mahindra",
     "COALINDIA": "Coal India",
-    "BPCL": "BPCL",
+    "BPCL": "Bharat Petroleum",
+    "HPCL": "Hindustan Petroleum",
+    "HINDPETRO": "Hindustan Petroleum",
     "IOC": "Indian Oil",
     "GRASIM": "Grasim",
     "CIPLA": "Cipla",
@@ -95,17 +96,38 @@ EQUITY_MAP: Dict[str, str] = {
     "PFC": "Power Finance",
     "NHPC": "NHPC",
     "SJVN": "SJVN",
+    "YESBANK": "Yes Bank",
+    "IDEA": "Vodafone Idea",
+    "TATAPOWER": "Tata Power",
+    "ADANIGREEN": "Adani Green",
+    "ADANIPOWER": "Adani Power",
+    "JIOFIN": "Jio Financial",
+    "POLYCAB": "Polycab",
+    "CGPOWER": "CG Power",
+    "PERSISTENT": "Persistent Systems",
+    "COFORGE": "Coforge",
+    "MPHASIS": "Mphasis",
+    "LTIM": "LTIMindtree",
+    "OFSS": "Oracle Financial Services",
+    "ABB": "ABB India",
 }
 
 
 def search_equity(query: str, limit: int = 25) -> List[Dict[str, str]]:
     q = (query or "").strip().upper()
     if not q:
-        # default: popular
         keys = list(EQUITY_MAP.keys())[:limit]
         return [{"symbol": k, "name": EQUITY_MAP[k], "segment": "EQ"} for k in keys]
-    out = []
+    out: List[Dict[str, str]] = []
+    # prefix first
     for sym, name in EQUITY_MAP.items():
+        if sym.startswith(q):
+            out.append({"symbol": sym, "name": name, "segment": "EQ"})
+            if len(out) >= limit:
+                return out
+    for sym, name in EQUITY_MAP.items():
+        if any(r["symbol"] == sym for r in out):
+            continue
         if q in sym or q in name.upper():
             out.append({"symbol": sym, "name": name, "segment": "EQ"})
             if len(out) >= limit:

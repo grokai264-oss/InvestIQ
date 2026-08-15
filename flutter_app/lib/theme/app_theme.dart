@@ -17,6 +17,13 @@ class AppTheme {
   static const Color indigoSoft = Color(0x33818CF8);
   static const Color gold = Color(0xFFD4A574); // restrained emphasis only
 
+  /// Brand mark gradient used on splash / onboarding logos.
+  static const LinearGradient brandGradient = LinearGradient(
+    begin: Alignment.topLeft,
+    end: Alignment.bottomRight,
+    colors: [Color(0xFF2DD4BF), Color(0xFF818CF8)],
+  );
+
   // Semantic
   static const Color green = Color(0xFF34D399);
   static const Color red = Color(0xFFF87171);

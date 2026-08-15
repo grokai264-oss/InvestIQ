@@ -71,17 +71,44 @@ jobs:
             sed -i 's/ext.kotlin_version = ".*"/ext.kotlin_version = "1.9.24"/' android/build.gradle || true
           fi
 
-          # Fix NDK version required by path_provider / shared_preferences
-          if [ -f android/app/build.gradle ]; then
-            if grep -q 'ndkVersion' android/app/build.gradle; then
-              sed -i 's/ndkVersion = ".*"/ndkVersion = "26.1.10909125"/' android/app/build.gradle || true
-              sed -i "s/ndkVersion '.*'/ndkVersion '26.1.10909125'/" android/app/build.gradle || true
-            else
-              sed -i '/android {/a\    ndkVersion = "26.1.10909125"' android/app/build.gradle || true
-            fi
-            echo "===== android/app/build.gradle (NDK section) ====="
-            grep -n -A2 -B2 ndkVersion android/app/build.gradle || head -40 android/app/build.gradle
-          fi
+          # Force NDK 26.1.10909125 (required by path_provider_android / shared_preferences_android)
+          python3 - <<'PYNDK'
+          from pathlib import Path
+          import re
+          path = Path("android/app/build.gradle")
+          if not path.exists():
+              print("WARN: android/app/build.gradle missing")
+              raise SystemExit(0)
+          text = path.read_text()
+          target = 'ndkVersion = "26.1.10909125"'
+          # Replace any existing ndkVersion line (flutter.ndkVersion, quoted versions, etc.)
+          new_text, n = re.subn(
+              r'^\s*ndkVersion\s+.*$',
+              f'    {target}',
+              text,
+              count=1,
+              flags=re.MULTILINE,
+          )
+          if n == 0:
+              # Insert after "android {"
+              new_text, n2 = re.subn(
+                  r'(android\s*\{)',
+                  r'\1\n    ' + target,
+                  text,
+                  count=1,
+              )
+              if n2 == 0:
+                  print("ERROR: could not insert ndkVersion")
+                  raise SystemExit(1)
+              print("Inserted ndkVersion after android {")
+          else:
+              print(f"Replaced existing ndkVersion line -> {target}")
+          path.write_text(new_text)
+          print("===== ndkVersion lines =====")
+          for i, line in enumerate(path.read_text().splitlines(), 1):
+              if "ndkVersion" in line or line.strip().startswith("android"):
+                  print(f"{i}: {line}")
+          PYNDK
 
       - name: Install dependencies
         working-directory: flutter_app

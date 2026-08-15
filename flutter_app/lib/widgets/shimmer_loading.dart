@@ -71,3 +71,14 @@ class ShimmerRecommendationList extends StatelessWidget {
     );
   }
 }
+
+
+/// Backward-compatible alias used by Market / Dashboard screens.
+class ShimmerLoading extends StatelessWidget {
+  final int itemCount;
+  const ShimmerLoading({super.key, this.itemCount = 5});
+
+  @override
+  Widget build(BuildContext context) =>
+      ShimmerRecommendationList(itemCount: itemCount);
+}

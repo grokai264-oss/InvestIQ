@@ -7,9 +7,5 @@ pyotp>=2.9.0
 pandas>=2.2.0
 numpy>=1.26.0
 loguru>=0.7.0
-tenacity>=8.2.0
 requests>=2.31.0
-aiohttp>=3.9.0
-websockets>=12.0
-
-# Kotak neo_api_client optional on Render
+yfinance>=0.2.40

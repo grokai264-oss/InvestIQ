@@ -71,7 +71,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
           child: CustomScrollView(
             physics: const AlwaysScrollableScrollPhysics(),
             slivers: [
-              SliiverToBoxAdapter(child: _buildHeader()),
+              SliverToBoxAdapter(child: _buildHeader()),
               const DisclaimerBanner(),
               SliiverToBoxAdapter(child: _buildTimeframeChips()),
               if (_view == _ViewState.loading)
@@ -80,14 +80,14 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   sliver: SliverToBoxAdapter(child: ShimmerRecommendationList()),
                 )
               else if (_view == _ViewState.error)
-                SliiverFillRemaining(hasScrollBody: false, child: _buildError())
+                SliverFillRemaining(hasScrollBody: false, child: _buildError())
               else if (_view == _ViewState.empty)
-                SliiverFillRemaining(hasScrollBody: false, child: _buildEmpty())
+                SliverFillRemaining(hasScrollBody: false, child: _buildEmpty())
               else
                 SliverPadding(
                   padding: const EdgeInsets.fromLTRB(16, 8, 16, 32),
                   sliver: SliverList(
-                    delegate: SliverChildBuilderDelegate(
+                    delegate: SliiverChildBuilderDelegate(
                       (context, index) {
                         final rec = _recs[index];
                         return RecommendationCard(

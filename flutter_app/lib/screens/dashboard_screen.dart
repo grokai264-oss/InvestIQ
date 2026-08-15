@@ -75,14 +75,14 @@ class _DashboardScreenState extends State<DashboardScreen> {
               const DisclaimerBanner(),
               SliverToBoxAdapter(child: _buildTimeframeChips()),
               if (_view == _ViewState.loading)
-                SliiverPadding(
+                SliverPadding(
                   padding: const EdgeInsets.fromLTRB(16, 8, 16, 32),
-                  sliver: SliiverToBoxAdapter(child: ShimmerRecommendationList()),
+                  sliver: SliverToBoxAdapter(child: ShimmerRecommendationList()),
                 )
               else if (_view == _ViewState.error)
-                SliiverFillRemaining(hasScrollBody: false, child: _buildError())
+                SliverFillRemaining(hasScrollBody: false, child: _buildError())
               else if (_view == _ViewState.empty)
-                SliiverFillRemaining(hasScrollBody: false, child: _buildEmpty())
+                SliverFillRemaining(hasScrollBody: false, child: _buildEmpty())
               else
                 SliverPadding(
                   padding: const EdgeInsets.fromLTRB(16, 8, 16, 32),

@@ -87,13 +87,32 @@ class IndexItem(BaseModel):
     symbol: str
     last: float
     change_pct: float
-    bias: str  # bullish | neutral | bearish
+    bias: str
 
 
 class IndicesResponse(BaseModel):
     as_of: str
     indices: List[IndexItem]
     note: str = "Indicative model values until live index feed is wired."
+
+
+class HoldingItem(BaseModel):
+    symbol: str
+    quantity: float = 0
+    avg_price: float = 0
+    ltp: float = 0
+    pnl: float = 0
+    pnl_pct: float = 0
+
+
+class PortfolioSummaryResponse(BaseModel):
+    linked: bool
+    message: str
+    total_value: float = 0
+    total_pnl: float = 0
+    total_pnl_pct: float = 0
+    holdings: List[HoldingItem] = Field(default_factory=list)
+    disclaimer: str = "Read-only view. This API never places orders."
 
 
 class HealthResponse(BaseModel):
@@ -198,10 +217,25 @@ async def health():
 
 @app.get("/api/v1/indices", response_model=IndicesResponse)
 async def market_indices():
-    """General market indices for dashboard header."""
     return IndicesResponse(
         as_of=datetime.now(timezone.utc).isoformat(),
         indices=[IndexItem(**x) for x in _INDICES],
+    )
+
+
+@app.get("/api/v1/portfolio/summary", response_model=PortfolioSummaryResponse)
+async def portfolio_summary():
+    """Read-only holdings snapshot. No trading."""
+    if not _kotak_connected():
+        return PortfolioSummaryResponse(
+            linked=False,
+            message="Kotak Neo not linked on server. Rankings still work; portfolio needs live session.",
+            holdings=[],
+        )
+    return PortfolioSummaryResponse(
+        linked=True,
+        message="Session active. Holdings feed depends on SDK methods; empty if not available.",
+        holdings=[],
     )
 
 

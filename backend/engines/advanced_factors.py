@@ -9,14 +9,14 @@ Implemented (no paid Level-2 required):
 """
 from __future__ import annotations
 
-from typing import Any, Dict, Optional, Tuple
+from typing import Dict, Optional, Tuple
 import numpy as np
 import pandas as pd
 from loguru import logger
 
 try:
     import yfinance as yf
-except ImportException:
+except ImportError:
     yf = None
 
 _vix_cache: Tuple[float, float] = (0.0, 0.0)

@@ -104,6 +104,7 @@ class _MarkPainter extends CustomPainter {
       ..strokeCap = StrokeCap.round
       ..color = const Color(0xFF3DDBB0);
 
+    // Ascending arc (market movement)
     final path = Path();
     path.moveTo(size.width * 0.22, size.height * 0.68);
     path.quadraticBezierTo(
@@ -120,6 +121,7 @@ class _MarkPainter extends CustomPainter {
     );
     canvas.drawPath(path, paint);
 
+    // Layered bars (intelligence)
     final barPaint = Paint()..style = PaintingStyle.fill;
     final bars = [
       (0.28, 0.55, 0.12, 0.22),
@@ -145,6 +147,7 @@ class _MarkPainter extends CustomPainter {
       canvas.drawRRect(r, barPaint);
     }
 
+    // Soft ring
     canvas.drawCircle(
       Offset(cx, cy),
       size.width * 0.38,

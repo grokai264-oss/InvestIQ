@@ -5,7 +5,10 @@ import '../services/api_service.dart';
 import '../theme/app_theme.dart';
 import '../widgets/recommendation_card.dart';
 import '../widgets/disclaimer_banner.dart';
+import '../widgets/shimmer_loading.dart';
 import 'stock_detail_screen.dart';
+
+enum _ViewState { loading, error, empty, loaded }
 
 class DashboardScreen extends StatefulWidget {
   const DashboardScreen({super.key});
@@ -17,10 +20,10 @@ class DashboardScreen extends StatefulWidget {
 class _DashboardScreenState extends State<DashboardScreen> {
   final ApiService _api = ApiService();
   List<Recommendation> _recs = [];
-  bool _loading = true;
-  String? _error;
+  _ViewState _view = _ViewState.loading;
+  BackendState? _backendState;
+  String _errorMessage = '';
   String _timeframe = 'daily';
-  bool _backendOnline = false;
 
   @override
   void initState() {
@@ -30,27 +33,30 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
   Future<void> _load() async {
     setState(() {
-      _loading = true;
-      _error = null;
+      _view = _ViewState.loading;
     });
     try {
-      final online = await _api.healthCheck();
       final list = await _api.getTopRecommendations(timeframe: _timeframe);
-      if (mounted) {
-        setState(() {
-          _backendOnline = online;
-          _recs = list;
-          _loading = false;
-        });
-      }
+      if (!mounted) return;
+      setState(() {
+        _recs = list;
+        _backendState = BackendState.online;
+        _view = list.isEmpty ? _ViewState.empty : _ViewState.loaded;
+      });
+    } on BackendException catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _errorMessage = e.message;
+        _backendState = e.state;
+        _view = _ViewState.error;
+      });
     } catch (e) {
-      if (mounted) {
-        setState(() {
-          _error = e.toString();
-          _loading = false;
-          _backendOnline = false;
-        });
-      }
+      if (!mounted) return;
+      setState(() {
+        _errorMessage = 'Something went wrong. Please try again.';
+        _backendState = BackendState.offline;
+        _view = _ViewState.error;
+      });
     }
   }
 
@@ -61,28 +67,22 @@ class _DashboardScreenState extends State<DashboardScreen> {
         child: RefreshIndicator(
           onRefresh: _load,
           color: AppTheme.accent,
+          backgroundColor: AppTheme.card,
           child: CustomScrollView(
             physics: const AlwaysScrollableScrollPhysics(),
             slivers: [
-              SliverToBoxAdapter(child: _buildHeader()),
+              SliiverToBoxAdapter(child: _buildHeader()),
               const DisclaimerBanner(),
-              SliverToBoxAdapter(child: _buildTimeframeChips()),
-              if (_loading)
-                const SliverFillRemaining(
-                  child: Center(child: CircularProgressIndicator()),
+              SliiverToBoxAdapter(child: _buildTimeframeChips()),
+              if (_view == _ViewState.loading)
+                SliverPadding(
+                  padding: const EdgeInsets.fromLTRB(16, 8, 16, 32),
+                  sliver: SliverToBoxAdapter(child: ShimmerRecommendationList()),
                 )
-              else if (_error != null)
-                SliverFillRemaining(child: _buildError())
-              else if (_recs.isEmpty)
-                const SliverFillRemaining(
-                  child: Center(
-                    child: Text(
-                      'No recommendations yet.\nStart the Python backend first.',
-                      textAlign: TextAlign.center,
-                      style: TextStyle(color: AppTheme.textSecondary),
-                    ),
-                  ),
-                )
+              else if (_view == _ViewState.error)
+                SliiverFillRemaining(hasScrollBody: false, child: _buildError())
+              else if (_view == _ViewState.empty)
+                SliiverFillRemaining(hasScrollBody: false, child: _buildEmpty())
               else
                 SliverPadding(
                   padding: const EdgeInsets.fromLTRB(16, 8, 16, 32),
@@ -116,6 +116,20 @@ class _DashboardScreenState extends State<DashboardScreen> {
       padding: const EdgeInsets.fromLTRB(20, 16, 20, 8),
       child: Row(
         children: [
+          Container(
+            width: 38,
+            height: 38,
+            decoration: BoxDecoration(
+              gradient: AppTheme.brandGradient,
+              borderRadius: BorderRadius.circular(11),
+            ),
+            alignment: Alignment.center,
+            child: const Text(
+              'IQ',
+              style: TextStyle(fontWeight: FontWeight.w800, fontSize: 15, color: Colors.white),
+            ),
+          ),
+          const SizedBox(width: 12),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -127,26 +141,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                       ),
                 ),
                 const SizedBox(height: 4),
-                Row(
-                  children: [
-                    Container(
-                      width: 8,
-                      height: 8,
-                      decoration: BoxDecoration(
-                        color: _backendOnline ? AppTheme.green : AppTheme.red,
-                        shape: BoxShape.circle,
-                      ),
-                    ),
-                    const SizedBox(width: 6),
-                    Text(
-                      _backendOnline ? 'Backend online' : 'Backend offline',
-                      style: const TextStyle(
-                        color: AppTheme.textSecondary,
-                        fontSize: 13,
-                      ),
-                    ),
-                  ],
-                ),
+                _statusRow(),
               ],
             ),
           ),
@@ -157,6 +152,36 @@ class _DashboardScreenState extends State<DashboardScreen> {
           ),
         ],
       ),
+    );
+  }
+
+  Widget _statusRow() {
+    Color dotColor;
+    String label;
+    if (_backendState == BackendState.online) {
+      dotColor = AppTheme.green;
+      label = 'Live';
+    } else if (_backendState == BackendState.waking) {
+      dotColor = AppTheme.yellow;
+      label = 'Waking up…';
+    } else if (_backendState == BackendState.offline) {
+      dotColor = AppTheme.red;
+      label = 'Offline';
+    } else {
+      dotColor = AppTheme.textMuted;
+      label = 'Checking…';
+    }
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Container(
+          width: 8,
+          height: 8,
+          decoration: BoxDecoration(color: dotColor, shape: BoxShape.circle),
+        ),
+        const SizedBox(width: 6),
+        Text(label, style: const TextStyle(color: AppTheme.textSecondary, fontSize: 13)),
+      ],
     );
   }
 
@@ -192,30 +217,82 @@ class _DashboardScreenState extends State<DashboardScreen> {
   }
 
   Widget _buildError() {
+    final waking = _backendState == BackendState.waking;
     return Center(
       child: Padding(
         padding: const EdgeInsets.all(32),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const Icon(Icons.cloud_off_rounded, size: 48, color: AppTheme.textSecondary),
-            const SizedBox(height: 16),
-            const Text(
-              'Cannot reach backend',
-              style: TextStyle(fontWeight: FontWeight.w600, fontSize: 16),
+            Container(
+              width: 64,
+              height: 64,
+              decoration: BoxDecoration(
+                color: (waking ? AppTheme.yellow : AppTheme.red).withOpacity(0.12),
+                shape: BoxShape.circle,
+              ),
+              child: Icon(
+                waking ? Icons.hourglass_top_rounded : Icons.cloud_off_rounded,
+                size: 28,
+                color: waking ? AppTheme.yellow : AppTheme.red,
+              ),
+            ),
+            const SizedBox(height: 18),
+            Text(
+              waking ? 'Server is waking up' : 'Cannot reach backend',
+              style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 17),
             ),
             const SizedBox(height: 8),
             Text(
-              'Start the Python API first:\n'
-              'cd backend && uvicorn api.main:app --reload --port 8000',
+              _errorMessage.isNotEmpty
+                  ? _errorMessage
+                  : 'Could not load recommendations. Please try again.',
               textAlign: TextAlign.center,
-              style: const TextStyle(color: AppTheme.textSecondary, fontSize: 13),
+              style: const TextStyle(color: AppTheme.textSecondary, fontSize: 13.5, height: 1.4),
             ),
-            const SizedBox(height: 20),
+            const SizedBox(height: 22),
             FilledButton.icon(
               onPressed: _load,
-              icon: const Icon(Icons.refresh),
+              icon: const Icon(Icons.refresh_rounded, size: 18),
               label: const Text('Retry'),
+              style: FilledButton.styleFrom(
+                backgroundColor: AppTheme.accent,
+                padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 12),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildEmpty() {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(32),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 64,
+              height: 64,
+              decoration: BoxDecoration(
+                color: AppTheme.accent.withOpacity(0.12),
+                shape: BoxShape.circle,
+              ),
+              child: const Icon(Icons.query_stats_rounded, size: 28, color: AppTheme.accent),
+            ),
+            const SizedBox(height: 18),
+            const Text(
+              'No recommendations yet',
+              style: TextStyle(fontWeight: FontWeight.w700, fontSize: 17),
+            ),
+            const SizedBox(height: 8),
+            const Text(
+              'The backend is reachable but has nothing to show for this timeframe.',
+              textAlign: TextAlign.center,
+              style: TextStyle(color: AppTheme.textSecondary, fontSize: 13.5, height: 1.4),
             ),
           ],
         ),

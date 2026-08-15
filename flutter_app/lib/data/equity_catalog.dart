@@ -12,70 +12,53 @@ class EquityEntry {
 List<EquityEntry> _catalog = [];
 bool _loaded = false;
 
-const _cacheKey = 'nse_equity_master_v3';
-const _assetPaths = [
-  'assets/nse_equity_0.json',
-  'assets/nse_equity_1.json',
-  'assets/nse_equity_2.json',
-  'assets/nse_equity.json', // legacy single file fallback
-];
+const _cacheKey = 'nse_equity_master_v4';
+const _assetPath = 'assets/nse_equity.json';
 
-/// Official-style EQUITY_L mirrors (background refresh only).
 const _masterUrls = [
   'https://raw.githubusercontent.com/USRJ78/stock-prediction-app/main/data/EQUITY_L.csv',
   'https://raw.githubusercontent.com/feroze/YFinance-stock-history/master/EQUITY_L.csv',
 ];
 
-/// Instant load from bundled full NSE master (~2235 symbols).
-/// Then optionally refreshes from network + SharedPreferences in background.
+/// Instant offline from bundled asset + SharedPreferences.
+/// Background network refresh expands to full NSE list.
 Future<void> ensureEquityCatalogLoaded() async {
-  if (_loaded && _catalog.length > 1000) return;
+  if (_loaded && _catalog.length > 200) return;
 
-  // 1) SharedPreferences cache (fastest after first run)
+  // 1) Cache
   try {
     final prefs = await SharedPreferences.getInstance();
     final cached = prefs.getString(_cacheKey);
-    if (cached != null && cached.length > 5000) {
+    if (cached != null && cached.length > 2000) {
       final parsed = _parseMasterJson(cached);
-      if (parsed.length > 1000) {
-        _catalog = parsed;
-        _loaded = true;
-        _refreshInBackground(prefs);
-        return;
-      }
-    }
-  } catch (_) {}
-
-  // 2) Bundled assets (shipped with APK – 100% offline, instant)
-  try {
-    final combined = <dynamic>[];
-    for (final path in _assetPaths) {
-      try {
-        final raw = await rootBundle.loadString(path);
-        if (raw.length < 50 || raw.contains('PLACEHOLDER')) continue;
-        final decoded = jsonDecode(raw);
-        if (decoded is List) combined.addAll(decoded);
-      } catch (_) {}
-    }
-    if (combined.isNotEmpty) {
-      final parsed = _parseMasterJson(jsonEncode(combined));
       if (parsed.length > 100) {
         _catalog = parsed;
         _loaded = true;
-        final prefs = await SharedPreferences.getInstance();
-        await prefs.setString(
-          _cacheKey,
-          jsonEncode([for (final e in parsed) {'s': e.symbol, 'n': e.name}]),
-        );
         _refreshInBackground(prefs);
         return;
       }
     }
   } catch (_) {}
 
-  // 3) Network download once
+  // 2) Bundled asset
+  try {
+    final raw = await rootBundle.loadString(_assetPath);
+    if (raw.length > 100 && !raw.contains('PLACEHOLDER')) {
+      final parsed = _parseMasterJson(raw);
+      if (parsed.length > 50) {
+        _catalog = parsed;
+        _loaded = true;
+        final prefs = await SharedPreferences.getInstance();
+        await prefs.setString(_cacheKey, raw);
+        _refreshInBackground(prefs);
+        return;
+      }
+    }
+  } catch (_) {}
+
+  // 3) Network
   final downloaded = await _downloadMaster();
-  if (downloaded.length > 500) {
+  if (downloaded.length > 100) {
     _catalog = downloaded;
     _loaded = true;
     try {
@@ -88,7 +71,7 @@ Future<void> ensureEquityCatalogLoaded() async {
     return;
   }
 
-  // 4) Tiny seed so UI never blocks
+  // 4) Seed
   _catalog = _seedFallback();
   _loaded = true;
 }
@@ -151,8 +134,7 @@ List<EquityEntry> _parseEquityCsv(String body) {
     if (sym.isEmpty || seen.contains(sym)) continue;
     final name = parts.length > 1 ? parts[1].trim() : sym;
     final series = parts.length > 2 ? parts[2].trim().toUpperCase() : 'EQ';
-    if (series.isNotEmpty &&
-        !const {'EQ', 'BE', 'SM', 'ST', 'BZ'}.contains(series)) {
+    if (series.isNotEmpty && !const {'EQ', 'BE', 'SM', 'ST', 'BZ'}.contains(series)) {
       continue;
     }
     seen.add(sym);

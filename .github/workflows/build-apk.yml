@@ -39,9 +39,7 @@ jobs:
         run: |
           MANIFEST="android/app/src/main/AndroidManifest.xml"
           if [ -f "$MANIFEST" ]; then
-            # Ensure INTERNET permission exists (required for HTTPS to Render)
             if ! grep -q 'android.permission.INTERNET' "$MANIFEST"; then
-              sed -i 's|<manifest |<manifest |' "$MANIFEST"
               sed -i '/<manifest /a\    <uses-permission android:name="android.permission.INTERNET"/>' "$MANIFEST"
             fi
             if ! grep -q 'android.permission.ACCESS_NETWORK_STATE' "$MANIFEST"; then
@@ -54,7 +52,7 @@ jobs:
             exit 1
           fi
 
-      - name: Fix Gradle + Kotlin + AGP versions
+      - name: Fix Gradle + Kotlin + AGP + NDK versions
         working-directory: flutter_app
         run: |
           if [ -f android/gradle/wrapper/gradle-wrapper.properties ]; then
@@ -71,6 +69,18 @@ jobs:
           if [ -f android/build.gradle ]; then
             sed -i "s/ext.kotlin_version = '.*'/ext.kotlin_version = '1.9.24'/" android/build.gradle || true
             sed -i 's/ext.kotlin_version = ".*"/ext.kotlin_version = "1.9.24"/' android/build.gradle || true
+          fi
+
+          # Fix NDK version required by path_provider / shared_preferences
+          if [ -f android/app/build.gradle ]; then
+            if grep -q 'ndkVersion' android/app/build.gradle; then
+              sed -i 's/ndkVersion = ".*"/ndkVersion = "26.1.10909125"/' android/app/build.gradle || true
+              sed -i "s/ndkVersion '.*'/ndkVersion '26.1.10909125'/" android/app/build.gradle || true
+            else
+              sed -i '/android {/a\    ndkVersion = "26.1.10909125"' android/app/build.gradle || true
+            fi
+            echo "===== android/app/build.gradle (NDK section) ====="
+            grep -n -A2 -B2 ndkVersion android/app/build.gradle || head -40 android/app/build.gradle
           fi
 
       - name: Install dependencies

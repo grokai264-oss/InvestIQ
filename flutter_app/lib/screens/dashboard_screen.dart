@@ -71,18 +71,18 @@ class _DashboardScreenState extends State<DashboardScreen> {
           child: CustomScrollView(
             physics: const AlwaysScrollableScrollPhysics(),
             slivers: [
-              SliverToBoxAdapter(child: _buildHeader()),
+              SliiverToBoxAdapter(child: _buildHeader()),
               const DisclaimerBanner(),
               SliiverToBoxAdapter(child: _buildTimeframeChips()),
               if (_view == _ViewState.loading)
                 SliverPadding(
                   padding: const EdgeInsets.fromLTRB(16, 8, 16, 32),
-                  sliver: SliverToBoxAdapter(child: ShimmerRecommendationList()),
+                  sliver: SliiverToBoxAdapter(child: ShimmerRecommendationList()),
                 )
               else if (_view == _ViewState.error)
-                SliverFillRemaining(hasScrollBody: false, child: _buildError())
+                SliiverFillRemaining(hasScrollBody: false, child: _buildError())
               else if (_view == _ViewState.empty)
-                SliverFillRemaining(hasScrollBody: false, child: _buildEmpty())
+                SliiverFillRemaining(hasScrollBody: false, child: _buildEmpty())
               else
                 SliverPadding(
                   padding: const EdgeInsets.fromLTRB(16, 8, 16, 32),
@@ -196,11 +196,12 @@ class _DashboardScreenState extends State<DashboardScreen> {
             child: ChoiceChip(
               label: Text(tf[0].toUpperCase() + tf.substring(1)),
               selected: selected,
+              showCheckmark: false,
               onSelected: (_) {
                 setState(() => _timeframe = tf);
                 _load();
               },
-              selectedColor: AppTheme.accent.withOpacity(0.25),
+              selectedColor: AppTheme.accent.withOpacity(0.22),
               labelStyle: TextStyle(
                 color: selected ? AppTheme.accent : AppTheme.textSecondary,
                 fontWeight: selected ? FontWeight.w600 : FontWeight.normal,

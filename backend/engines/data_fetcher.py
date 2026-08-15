@@ -1,8 +1,10 @@
-"""Seed OHLCV from Yahoo Finance (.NS) for Indian equities."""
+"""Seed OHLCV from Yahoo Finance (.NS) with in-memory TTL cache."""
 from __future__ import annotations
 
 import pandas as pd
 from loguru import logger
+
+from . import ohlcv_cache
 
 try:
     import yfinance as yf
@@ -13,11 +15,16 @@ except ImportError:
 class LiveDataFetcher:
     @staticmethod
     def fetch_daily_ohlcv(symbol: str, days: int = 90) -> pd.DataFrame:
+        symbol = symbol.upper().replace(".NS", "")
+        cached = ohlcv_cache.get(symbol)
+        if cached is not None and len(cached) >= 30:
+            return cached
+
         if yf is None:
             raise RuntimeError("yfinance not installed")
 
-        ticker = f"{symbol.upper().replace('.NS', '')}.NS"
-        period = "6mo" if days >= 90 else ("3mo" if days >= 60 else "1mo")
+        ticker = f"{symbol}.NS"
+        period = "1y" if days >= 180 else ("6mo" if days >= 90 else "3mo")
         raw = yf.download(
             ticker,
             period=period,
@@ -30,19 +37,22 @@ class LiveDataFetcher:
             raise ValueError(f"No OHLCV for {ticker}")
 
         if isinstance(raw.columns, pd.MultiIndex):
-            raw.columns = [c[0].lower() if isinstance(c, tuple) else str(c).lower() for c in raw.columns]
+            raw.columns = [
+                c[0].lower() if isinstance(c, tuple) else str(c).lower()
+                for c in raw.columns
+            ]
         else:
             raw.columns = [str(c).lower() for c in raw.columns]
 
         need = {}
-        for src, dst in [("open", "open"), ("high", "high"), ("low", "low"), ("close", "close"), ("volume", "volume")]:
+        for src in ("open", "high", "low", "close", "volume"):
             if src not in raw.columns:
                 raise ValueError(f"Missing column {src} for {ticker}")
-            need[dst] = raw[src].astype(float)
+            need[src] = raw[src].astype(float)
 
-        df = pd.DataFrame(need, index=pd.to_datetime(raw.index))
-        df = df.dropna()
+        df = pd.DataFrame(need, index=pd.to_datetime(raw.index)).dropna()
         if len(df) < 30:
             raise ValueError(f"Insufficient history for {ticker}: {len(df)} bars")
-        logger.debug(f"Fetched {len(df)} bars for {ticker}")
+        ohlcv_cache.put(symbol, df)
+        logger.debug(f"Fetched+cached {len(df)} bars for {ticker}")
         return df

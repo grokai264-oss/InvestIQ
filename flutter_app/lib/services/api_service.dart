@@ -4,15 +4,10 @@ import '../models/recommendation.dart';
 
 /// READ-ONLY API client. Never calls order/trade endpoints.
 class ApiService {
-  // AFTER Render deploy, paste your URL here (no trailing slash):
-  // Example: https://investiq-xxxx.onrender.com
   static const String baseUrl = String.fromEnvironment(
     'API_BASE_URL',
-    defaultValue: 'https://YOUR-RENDER-SERVICE.onrender.com',
+    defaultValue: 'https://investiq-g92v.onrender.com',
   );
-
-  // For local testing only, temporarily use:
-  // static const String baseUrl = 'http://10.0.2.2:8000';
 
   Future<List<Recommendation>> getTopRecommendations({
     String timeframe = 'daily',
@@ -21,7 +16,7 @@ class ApiService {
     final uri = Uri.parse(
       '$baseUrl/api/v1/recommendations/top?timeframe=$timeframe&limit=$limit',
     );
-    final response = await http.get(uri).timeout(const Duration(seconds: 20));
+    final response = await http.get(uri).timeout(const Duration(seconds: 45));
 
     if (response.statusCode != 200) {
       throw Exception('Failed to load recommendations (${response.statusCode})');
@@ -39,7 +34,7 @@ class ApiService {
     final uri = Uri.parse(
       '$baseUrl/api/v1/recommendations/${symbol.toUpperCase()}?timeframe=$timeframe',
     );
-    final response = await http.get(uri).timeout(const Duration(seconds: 20));
+    final response = await http.get(uri).timeout(const Duration(seconds: 45));
 
     if (response.statusCode != 200) {
       throw Exception('No data for $symbol (${response.statusCode})');
@@ -52,7 +47,7 @@ class ApiService {
     try {
       final response = await http
           .get(Uri.parse('$baseUrl/'))
-          .timeout(const Duration(seconds: 15));
+          .timeout(const Duration(seconds: 45));
       return response.statusCode == 200;
     } catch (_) {
       return false;

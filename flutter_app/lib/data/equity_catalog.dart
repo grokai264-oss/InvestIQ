@@ -12,10 +12,15 @@ class EquityEntry {
 List<EquityEntry> _catalog = [];
 bool _loaded = false;
 
-const _cacheKey = 'nse_equity_master_v2';
-const _assetPath = 'assets/nse_equity.json';
+const _cacheKey = 'nse_equity_master_v3';
+const _assetPaths = [
+  'assets/nse_equity_0.json',
+  'assets/nse_equity_1.json',
+  'assets/nse_equity_2.json',
+  'assets/nse_equity.json', // legacy single file fallback
+];
 
-/// Official-style EQUITY_L mirrors (tried in order for background refresh).
+/// Official-style EQUITY_L mirrors (background refresh only).
 const _masterUrls = [
   'https://raw.githubusercontent.com/USRJ78/stock-prediction-app/main/data/EQUITY_L.csv',
   'https://raw.githubusercontent.com/feroze/YFinance-stock-history/master/EQUITY_L.csv',
@@ -35,24 +40,36 @@ Future<void> ensureEquityCatalogLoaded() async {
       if (parsed.length > 1000) {
         _catalog = parsed;
         _loaded = true;
-        // still try background refresh
         _refreshInBackground(prefs);
         return;
       }
     }
   } catch (_) {}
 
-  // 2) Bundled asset (shipped with APK – 100% offline, instant)
+  // 2) Bundled assets (shipped with APK – 100% offline, instant)
   try {
-    final raw = await rootBundle.loadString(_assetPath);
-    final parsed = _parseMasterJson(raw);
-    if (parsed.length > 1000) {
-      _catalog = parsed;
-      _loaded = true;
-      final prefs = await SharedPreferences.getInstance();
-      await prefs.setString(_cacheKey, raw);
-      _refreshInBackground(prefs);
-      return;
+    final combined = <dynamic>[];
+    for (final path in _assetPaths) {
+      try {
+        final raw = await rootBundle.loadString(path);
+        if (raw.length < 50 || raw.contains('PLACEHOLDER')) continue;
+        final decoded = jsonDecode(raw);
+        if (decoded is List) combined.addAll(decoded);
+      } catch (_) {}
+    }
+    if (combined.isNotEmpty) {
+      final parsed = _parseMasterJson(jsonEncode(combined));
+      if (parsed.length > 100) {
+        _catalog = parsed;
+        _loaded = true;
+        final prefs = await SharedPreferences.getInstance();
+        await prefs.setString(
+          _cacheKey,
+          jsonEncode([for (final e in parsed) {'s': e.symbol, 'n': e.name}]),
+        );
+        _refreshInBackground(prefs);
+        return;
+      }
     }
   } catch (_) {}
 
@@ -105,13 +122,16 @@ Future<List<EquityEntry>> _downloadMaster() async {
 List<EquityEntry> _parseMasterJson(String raw) {
   try {
     final list = jsonDecode(raw) as List;
-    return [
-      for (final e in list)
-        EquityEntry(
-          (e['s'] ?? '').toString().toUpperCase(),
-          (e['n'] ?? '').toString(),
-        )
-    ]..sort((a, b) => a.symbol.compareTo(b.symbol));
+    final seen = <String>{};
+    final out = <EquityEntry>[];
+    for (final e in list) {
+      final s = (e['s'] ?? '').toString().toUpperCase();
+      if (s.isEmpty || seen.contains(s)) continue;
+      seen.add(s);
+      out.add(EquityEntry(s, (e['n'] ?? s).toString()));
+    }
+    out.sort((a, b) => a.symbol.compareTo(b.symbol));
+    return out;
   } catch (_) {
     return [];
   }
@@ -138,7 +158,6 @@ List<EquityEntry> _parseEquityCsv(String body) {
     seen.add(sym);
     out.add(EquityEntry(sym, name.isEmpty ? sym : name));
   }
-  // Common search aliases
   if (!seen.contains('HPCL') && seen.contains('HINDPETRO')) {
     final n = out.firstWhere((e) => e.symbol == 'HINDPETRO').name;
     out.add(EquityEntry('HPCL', n));
@@ -198,7 +217,6 @@ List<EquityEntry> searchLocal(String query, {int limit = 40}) {
   }
   if (q.isEmpty) return catalog.take(limit).toList();
   final out = <EquityEntry>[];
-  // prefix matches first
   for (final e in catalog) {
     if (e.symbol.startsWith(q)) {
       out.add(e);

@@ -15,6 +15,32 @@ class BackendException implements Exception {
   String toString() => message;
 }
 
+class EquityHit {
+  final String symbol;
+  final String name;
+  final String segment;
+  EquityHit({required this.symbol, required this.name, this.segment = 'EQ'});
+  factory EquityHit.fromJson(Map<String, dynamic> j) => EquityHit(
+        symbol: (j['symbol'] ?? '').toString(),
+        name: (j['name'] ?? '').toString(),
+        segment: (j['segment'] ?? 'EQ').toString(),
+      );
+}
+
+class QuoteTick {
+  final String symbol;
+  final double? ltp;
+  final double? changePct;
+  final String source;
+  QuoteTick({required this.symbol, this.ltp, this.changePct, this.source = 'market'});
+  factory QuoteTick.fromJson(Map<String, dynamic> j) => QuoteTick(
+        symbol: (j['symbol'] ?? '').toString(),
+        ltp: (j['ltp'] as num?)?.toDouble(),
+        changePct: (j['change_pct'] as num?)?.toDouble(),
+        source: (j['source'] ?? 'market').toString(),
+      );
+}
+
 class ApiService {
   static const String baseUrl = String.fromEnvironment(
     'API_BASE_URL',
@@ -105,6 +131,44 @@ class ApiService {
         totalPnlPct: 0,
         holdings: [],
       );
+    }
+  }
+
+  Future<List<EquityHit>> searchEquities(String query, {int limit = 25}) async {
+    final uri = Uri.parse('$baseUrl/api/v1/search').replace(queryParameters: {
+      'q': query,
+      'limit': '$limit',
+    });
+    try {
+      final response = await http.get(uri).timeout(_cold);
+      if (response.statusCode != 200) return [];
+      final data = jsonDecode(response.body);
+      final list = data['results'] as List? ?? [];
+      return list.map((e) => EquityHit.fromJson(Map<String, dynamic>.from(e))).toList();
+    } catch (_) {
+      return [];
+    }
+  }
+
+  Future<Map<String, QuoteTick>> getQuotes(List<String> symbols) async {
+    if (symbols.isEmpty) return {};
+    final joined = symbols.map((s) => s.toUpperCase()).toSet().join(',');
+    final uri = Uri.parse('$baseUrl/api/v1/quotes').replace(queryParameters: {
+      'symbols': joined,
+    });
+    try {
+      final response = await http.get(uri).timeout(_cold);
+      if (response.statusCode != 200) return {};
+      final data = jsonDecode(response.body);
+      final list = data['quotes'] as List? ?? [];
+      final map = <String, QuoteTick>{};
+      for (final e in list) {
+        final q = QuoteTick.fromJson(Map<String, dynamic>.from(e));
+        map[q.symbol] = q;
+      }
+      return map;
+    } catch (_) {
+      return {};
     }
   }
 }

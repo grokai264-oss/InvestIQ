@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'package:flutter/services.dart' show rootBundle;
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -11,49 +12,94 @@ class EquityEntry {
 List<EquityEntry> _catalog = [];
 bool _loaded = false;
 
-const _cacheKey = 'nse_equity_master_v1';
+const _cacheKey = 'nse_equity_master_v2';
+const _assetPath = 'assets/nse_equity.json';
 
-/// Official-style EQUITY_L mirror (full NSE equity list).
-const _masterUrl =
-    'https://raw.githubusercontent.com/USRJ78/stock-prediction-app/main/data/EQUITY_L.csv';
+/// Official-style EQUITY_L mirrors (tried in order for background refresh).
+const _masterUrls = [
+  'https://raw.githubusercontent.com/USRJ78/stock-prediction-app/main/data/EQUITY_L.csv',
+  'https://raw.githubusercontent.com/feroze/YFinance-stock-history/master/EQUITY_L.csv',
+];
 
-/// Loads ~2200+ NSE symbols: cache first, else download once.
+/// Instant load from bundled full NSE master (~2235 symbols).
+/// Then optionally refreshes from network + SharedPreferences in background.
 Future<void> ensureEquityCatalogLoaded() async {
-  if (_loaded && _catalog.isNotEmpty) return;
+  if (_loaded && _catalog.length > 1000) return;
 
-  final prefs = await SharedPreferences.getInstance();
-  final cached = prefs.getString(_cacheKey);
-  if (cached != null && cached.isNotEmpty) {
-    _catalog = _parseMasterJson(cached);
-    if (_catalog.length > 500) {
-      _loaded = true;
-      return;
-    }
-  }
-
+  // 1) SharedPreferences cache (fastest after first run)
   try {
-    final res = await http
-        .get(Uri.parse(_masterUrl))
-        .timeout(const Duration(seconds: 45));
-    if (res.statusCode == 200 && res.body.length > 1000) {
-      final parsed = _parseEquityCsv(res.body);
-      if (parsed.length > 500) {
+    final prefs = await SharedPreferences.getInstance();
+    final cached = prefs.getString(_cacheKey);
+    if (cached != null && cached.length > 5000) {
+      final parsed = _parseMasterJson(cached);
+      if (parsed.length > 1000) {
         _catalog = parsed;
-        await prefs.setString(
-          _cacheKey,
-          jsonEncode([
-            for (final e in parsed) {'s': e.symbol, 'n': e.name},
-          ]),
-        );
         _loaded = true;
+        // still try background refresh
+        _refreshInBackground(prefs);
         return;
       }
     }
   } catch (_) {}
 
-  // Seed fallback (still usable offline)
+  // 2) Bundled asset (shipped with APK – 100% offline, instant)
+  try {
+    final raw = await rootBundle.loadString(_assetPath);
+    final parsed = _parseMasterJson(raw);
+    if (parsed.length > 1000) {
+      _catalog = parsed;
+      _loaded = true;
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString(_cacheKey, raw);
+      _refreshInBackground(prefs);
+      return;
+    }
+  } catch (_) {}
+
+  // 3) Network download once
+  final downloaded = await _downloadMaster();
+  if (downloaded.length > 500) {
+    _catalog = downloaded;
+    _loaded = true;
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString(
+        _cacheKey,
+        jsonEncode([for (final e in downloaded) {'s': e.symbol, 'n': e.name}]),
+      );
+    } catch (_) {}
+    return;
+  }
+
+  // 4) Tiny seed so UI never blocks
   _catalog = _seedFallback();
   _loaded = true;
+}
+
+void _refreshInBackground(SharedPreferences prefs) {
+  Future(() async {
+    final fresh = await _downloadMaster();
+    if (fresh.length > _catalog.length) {
+      _catalog = fresh;
+      await prefs.setString(
+        _cacheKey,
+        jsonEncode([for (final e in fresh) {'s': e.symbol, 'n': e.name}]),
+      );
+    }
+  });
+}
+
+Future<List<EquityEntry>> _downloadMaster() async {
+  for (final url in _masterUrls) {
+    try {
+      final res = await http.get(Uri.parse(url)).timeout(const Duration(seconds: 40));
+      if (res.statusCode == 200 && res.body.length > 1000) {
+        final parsed = _parseEquityCsv(res.body);
+        if (parsed.length > 500) return parsed;
+      }
+    } catch (_) {}
+  }
+  return [];
 }
 
 List<EquityEntry> _parseMasterJson(String raw) {
@@ -62,10 +108,10 @@ List<EquityEntry> _parseMasterJson(String raw) {
     return [
       for (final e in list)
         EquityEntry(
-          (e['s'] ?? '').toString(),
+          (e['s'] ?? '').toString().toUpperCase(),
           (e['n'] ?? '').toString(),
         )
-    ];
+    ]..sort((a, b) => a.symbol.compareTo(b.symbol));
   } catch (_) {
     return [];
   }
@@ -76,7 +122,6 @@ List<EquityEntry> _parseEquityCsv(String body) {
   if (lines.isEmpty) return [];
   final out = <EquityEntry>[];
   final seen = <String>{};
-  // header: SYMBOL,NAME OF COMPANY,SERIES,...
   for (var i = 1; i < lines.length; i++) {
     final line = lines[i].trim();
     if (line.isEmpty) continue;
@@ -93,7 +138,7 @@ List<EquityEntry> _parseEquityCsv(String body) {
     seen.add(sym);
     out.add(EquityEntry(sym, name.isEmpty ? sym : name));
   }
-  // Alias often searched
+  // Common search aliases
   if (!seen.contains('HPCL') && seen.contains('HINDPETRO')) {
     final n = out.firstWhere((e) => e.symbol == 'HINDPETRO').name;
     out.add(EquityEntry('HPCL', n));
@@ -103,7 +148,6 @@ List<EquityEntry> _parseEquityCsv(String body) {
 }
 
 List<String> _splitCsvLine(String line) {
-  // Simple CSV split handling quotes
   final result = <String>[];
   final buf = StringBuffer();
   var inQ = false;
@@ -154,6 +198,7 @@ List<EquityEntry> searchLocal(String query, {int limit = 40}) {
   }
   if (q.isEmpty) return catalog.take(limit).toList();
   final out = <EquityEntry>[];
+  // prefix matches first
   for (final e in catalog) {
     if (e.symbol.startsWith(q)) {
       out.add(e);

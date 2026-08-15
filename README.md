@@ -1,70 +1,27 @@
 # InvestIQ
 
-**Read-only** multi-horizon stock recommendation system powered by Kotak Neo live data + institutional factors.
+Read-only stock rankings + portfolio view. **Never places orders.**
 
-Backend (Python + FastAPI) + modern Flutter dashboard.
+## Stack
+- Flutter app (classical desk UI)
+- FastAPI backend on Render: https://investiq-g92v.onrender.com
 
-> ⚠️ **This app NEVER places, modifies, or cancels any orders on Kotak Neo or any broker.**  
-> It only collects market data, computes factors, and shows analytical rankings.
+## Features
+- Multi-horizon rankings (daily / monthly / yearly)
+- Market indices strip
+- Local display name (onboarding) — not sent to servers
+- Portfolio tab (read-only; needs Kotak linked on server)
+- Watchlist (on-device only)
+- Profile / safety notes
 
----
+## Safety
+- No order/trade endpoints
+- Kotak secrets only in Render Environment
+- Analytical signals only
 
-## Download APK (Android)
-
-1. Open the repo on GitHub: https://github.com/grokai264-oss/InvestIQ
-2. Tap **Actions** (top menu)
-3. Select workflow **Build APK**
-4. Tap **Run workflow** → **Run workflow**
-5. Wait 3–6 minutes for the green check
-6. Open the completed run → scroll to **Artifacts**
-7. Download **InvestIQ-APK**
-8. Unzip and install `app-release.apk` on your phone
-
-> First run may take longer. The workflow is triggered automatically on every push to `flutter_app/` as well.
-
----
-
-## Repository Structure
-
-```
-InvestIQ/
-├── .github/workflows/build-apk.yml   # APK builder
-├── backend/                          # FastAPI (read-only)
-│   ├── api/main.py
-│   └── requirements.txt
-├── flutter_app/                      # Flutter dashboard
-│   ├── lib/
-│   │   ├── main.dart
-│   │   ├── screens/
-│   │   ├── services/                 # GET only
-│   │   ├── widgets/
-│   │   └── theme/
-│   └── pubspec.yaml
-└── docs/
-```
-
----
-
-## Quick Start (local)
-
-### Backend
+## Backend
 ```bash
 cd backend
 pip install -r requirements.txt
-uvicorn api.main:app --reload --host 0.0.0.0 --port 8000
+uvicorn api.main:app --host 0.0.0.0 --port 8000
 ```
-
-### Flutter
-```bash
-cd flutter_app
-flutter pub get
-flutter run
-```
-
----
-
-## Security
-
-- No buy/sell/order endpoints exist (any attempt returns 403)
-- Flutter only uses GET requests
-- Every screen shows an analytical-only disclaimer

@@ -1,1 +1,1 @@
-# Kotak ingestion (read-only)
+# read-only ingestion

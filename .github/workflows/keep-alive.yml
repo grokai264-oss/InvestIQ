@@ -1,6 +1,5 @@
 name: Keep Render Awake
 
-# Pings the API every 10 minutes so the free instance does not sleep.
 on:
   schedule:
     - cron: '*/10 * * * *'
@@ -12,13 +11,7 @@ jobs:
     steps:
       - name: Ping health endpoint
         run: |
-          URL="${{ secrets.RENDER_URL }}"
-          if [ -z "$URL" ]; then
-            echo "Set repo secret RENDER_URL to your full Render URL, e.g. https://investiq-xxxx.onrender.com"
-            exit 0
-          fi
-          # strip trailing slash
-          URL="${URL%/}"
+          URL="https://investiq-g92v.onrender.com"
           echo "Pinging $URL/"
-          curl -fsS --max-time 30 "$URL/" || echo "Ping failed (service may be cold-starting)"
+          curl -fsS --max-time 60 "$URL/" || echo "Ping failed (cold start is ok)"
           echo "Done"

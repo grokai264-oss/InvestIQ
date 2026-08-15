@@ -11,6 +11,7 @@ class Recommendation {
   final List<String> rationale;
   final String disclaimer;
   final String generatedAt;
+  final String dataSource;
 
   Recommendation({
     required this.symbol,
@@ -25,6 +26,7 @@ class Recommendation {
     required this.rationale,
     required this.disclaimer,
     required this.generatedAt,
+    this.dataSource = 'live',
   });
 
   factory Recommendation.fromJson(Map<String, dynamic> json) {
@@ -46,9 +48,31 @@ class Recommendation {
       disclaimer: json['disclaimer'] ??
           'This is an analytical signal only. It does not place any orders.',
       generatedAt: json['generated_at'] ?? '',
+      dataSource: json['data_source']?.toString() ?? 'live',
     );
   }
 
   bool get isBuy => action == 'BUY' || action == 'STRONG BUY';
   bool get isSell => action == 'SELL';
+
+  /// Human labels for institutional factor radar
+  static const factorLabels = {
+    'score_rsi': 'RSI',
+    'score_ema': 'Trend',
+    'score_rvol': 'Volume',
+    'score_macd': 'MACD',
+    'score_vwap': 'VWAP',
+    'score_momentum': 'Momentum',
+    'score_low_vol': 'LowVol',
+    'score_delivery': 'Delivery',
+    'score_fii': 'FII',
+    'score_value': 'Value',
+  };
+
+  String? get regimeFromRationale {
+    for (final r in rationale) {
+      if (r.toLowerCase().startsWith('regime=')) return r;
+    }
+    return null;
+  }
 }

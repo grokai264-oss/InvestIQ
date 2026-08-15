@@ -64,7 +64,7 @@ async def lifespan(app: FastAPI):
 app = FastAPI(
     title="InvestIQ API",
     description="Live multi-factor rankings. Analytical only — never places orders.",
-    version="2.0.0",
+    version="2.5.0",
     lifespan=lifespan,
 )
 
@@ -142,7 +142,7 @@ class HealthResponse(BaseModel):
     kotak_connected: bool
     kotak_error: Optional[str] = None
     engine: str = "live"
-    version: str = "2.0.0"
+    version: str = "2.5.0"
 
 
 def _kotak_connected() -> bool:

@@ -64,7 +64,7 @@ async def lifespan(app: FastAPI):
 app = FastAPI(
     title="InvestIQ API",
     description="Live multi-factor rankings. Analytical only — never places orders.",
-    version="2.5.0",
+    version="2.6.0",
     lifespan=lifespan,
 )
 
@@ -142,7 +142,7 @@ class HealthResponse(BaseModel):
     kotak_connected: bool
     kotak_error: Optional[str] = None
     engine: str = "live"
-    version: str = "2.5.0"
+    version: str = "2.6.0"
 
 
 def _kotak_connected() -> bool:
@@ -297,6 +297,78 @@ async def single_recommendation(
     except Exception as e:
         raise HTTPException(status_code=404, detail=f"Could not compute {symbol}: {e}")
     return _to_rec(live)
+
+
+class SearchItem(BaseModel):
+    symbol: str
+    name: str
+    segment: str = "EQ"
+
+
+class SearchResponse(BaseModel):
+    query: str
+    count: int
+    results: List[SearchItem]
+
+
+class QuoteItem(BaseModel):
+    symbol: str
+    ltp: Optional[float] = None
+    change_pct: Optional[float] = None
+    source: str = "market"
+    segment: str = "EQ"
+
+
+class QuotesResponse(BaseModel):
+    count: int
+    kotak_connected: bool = False
+    quotes: List[QuoteItem]
+
+
+@app.get("/api/v1/search", response_model=SearchResponse)
+async def search_equities(q: str = Query("", max_length=40), limit: int = Query(25, ge=1, le=50)):
+    """Search NSE equity symbols by ticker or name. Cash market only."""
+    try:
+        from engines.equity_universe import search_equity
+        rows = search_equity(q, limit=limit)
+    except Exception as e:
+        logger.warning(f"search: {e}")
+        rows = []
+    return SearchResponse(
+        query=q,
+        count=len(rows),
+        results=[SearchItem(**r) for r in rows],
+    )
+
+
+@app.get("/api/v1/quotes", response_model=QuotesResponse)
+async def get_quotes(symbols: str = Query(..., description="Comma-separated equity symbols")):
+    """LTP for equity. Kotak LTP when in holdings; else market. Read-only."""
+    syms = [s.strip().upper() for s in symbols.split(",") if s.strip()]
+    if not syms:
+        raise HTTPException(400, "Provide at least one symbol")
+    if len(syms) > 40:
+        raise HTTPException(400, "Max 40 symbols per request")
+
+    holdings = []
+    if _kotak_connected() and kotak is not None:
+        try:
+            holdings = kotak.normalized_holdings()
+        except Exception as e:
+            logger.debug(f"quotes holdings overlay: {e}")
+
+    try:
+        from engines.quotes import quotes_for
+        rows = quotes_for(syms, kotak_holdings=holdings)
+    except Exception as e:
+        logger.warning(f"quotes: {e}")
+        rows = [{"symbol": s, "ltp": None, "change_pct": None, "source": "error", "segment": "EQ"} for s in syms]
+
+    return QuotesResponse(
+        count=len(rows),
+        kotak_connected=_kotak_connected(),
+        quotes=[QuoteItem(**r) for r in rows],
+    )
 
 
 @app.post("/api/v1/orders", include_in_schema=False)

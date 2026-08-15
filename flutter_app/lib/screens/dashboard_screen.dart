@@ -9,6 +9,7 @@ import '../widgets/shimmer_loading.dart';
 import '../widgets/regime_banner.dart';
 import '../widgets/indices_strip.dart';
 import 'stock_detail_screen.dart';
+import 'search_screen.dart';
 
 enum _ViewState { loading, error, empty, loaded }
 
@@ -82,11 +83,11 @@ class _DashboardScreenState extends State<DashboardScreen> {
             slivers: [
               SliiverHeader(),
               if (_indices.isNotEmpty)
-                SliverToBoxAdapter(child: RegimeBanner(indices: _indices)),
+                SliiverToBoxAdapter(child: RegimeBanner(indices: _indices)),
               if (_indices.isNotEmpty)
-                SliverToBoxAdapter(child: IndicesStrip(indices: _indices)),
+                SliiverToBoxAdapter(child: IndicesStrip(indices: _indices)),
               const DisclaimerBanner(),
-              SliverToBoxAdapter(child: _buildTimeframeChips()),
+              SliiverToBoxAdapter(child: _buildTimeframeChips()),
               if (_view == _ViewState.loading)
                 SliverPadding(
                   padding: const EdgeInsets.fromLTRB(16, 8, 16, 32),
@@ -97,7 +98,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
               else if (_view == _ViewState.empty)
                 SliverFillRemaining(hasScrollBody: false, child: _buildEmpty())
               else
-                SliverPadding(
+                SliiverPadding(
                   padding: const EdgeInsets.fromLTRB(16, 8, 16, 32),
                   sliver: SliverList(
                     delegate: SliverChildBuilderDelegate(
@@ -128,6 +129,12 @@ class _DashboardScreenState extends State<DashboardScreen> {
   Widget SliiverHeader() => SliverToBoxAdapter(child: _buildHeader());
   // ignore: non_constant_identifier_names
   Widget SliiverError() => SliverFillRemaining(hasScrollBody: false, child: _buildError());
+  // ignore: non_constant_identifier_names
+  Widget SliiverToBoxAdapter({required Widget child}) =>
+      SliverToBoxAdapter(child: child);
+  // ignore: non_constant_identifier_names
+  Widget SliiverPadding({required EdgeInsets padding, required Widget sliver}) =>
+      SliverPadding(padding: padding, sliver: sliver);
 
   Widget _buildHeader() {
     return Padding(
@@ -162,6 +169,14 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 _statusRow(),
               ],
             ),
+          ),
+          IconButton(
+            onPressed: () => Navigator.push(
+              context,
+              MaterialPageRoute(builder: (_) => const SearchScreen()),
+            ),
+            icon: const Icon(Icons.search_rounded),
+            color: AppTheme.accent,
           ),
           IconButton(
             onPressed: _load,

@@ -48,6 +48,7 @@ class ApiService {
   );
 
   static const _cold = Duration(seconds: 70);
+  static const _fast = Duration(seconds: 25);
 
   Future<List<Recommendation>> getTopRecommendations({
     String timeframe = 'daily',
@@ -140,7 +141,7 @@ class ApiService {
       'limit': '$limit',
     });
     try {
-      final response = await http.get(uri).timeout(_cold);
+      final response = await http.get(uri).timeout(_fast);
       if (response.statusCode != 200) return [];
       final data = jsonDecode(response.body);
       final list = data['results'] as List? ?? [];
@@ -157,7 +158,7 @@ class ApiService {
       'symbols': joined,
     });
     try {
-      final response = await http.get(uri).timeout(_cold);
+      final response = await http.get(uri).timeout(_fast);
       if (response.statusCode != 200) return {};
       final data = jsonDecode(response.body);
       final list = data['quotes'] as List? ?? [];

@@ -17,7 +17,7 @@ class IntelligentStockApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'InvestIQ',
+      title: 'InvestIQ — Smarter Research. Better Decisions.',
       debugShowCheckedModeBanner: false,
       theme: AppTheme.dark,
       home: const SplashScreen(),

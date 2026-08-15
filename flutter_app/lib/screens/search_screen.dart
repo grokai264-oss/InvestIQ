@@ -6,7 +6,7 @@ import '../services/profile_store.dart';
 import '../theme/app_theme.dart';
 import 'stock_detail_screen.dart';
 
-/// Instant local equity search; LTP loads in background.
+/// Instant local equity search over full NSE master; LTP loads in background.
 class SearchScreen extends StatefulWidget {
   const SearchScreen({super.key});
   @override
@@ -22,14 +22,13 @@ class _SearchScreenState extends State<SearchScreen> {
   Map<String, QuoteTick> _quotes = {};
   Set<String> _watched = {};
   bool _quotesLoading = false;
+  bool _catalogReady = false;
+  int _catalogCount = 0;
 
   @override
   void initState() {
     super.initState();
-    _hits = searchLocal('');
-    _loadWatch();
-    // quotes after first frame — never block list
-    WidgetsBinding.instance.addPostFrameCallback((_) => _fetchQuotesBackground());
+    _bootstrap();
   }
 
   @override
@@ -39,19 +38,26 @@ class _SearchScreenState extends State<SearchScreen> {
     super.dispose();
   }
 
-  Future<void> _loadWatch() async {
+  Future<void> _bootstrap() async {
+    await ensureEquityCatalogLoaded();
     final w = await _store.getWatchlist();
     if (!mounted) return;
-    setState(() => _watched = w.map((e) => e.toUpperCase()).toSet());
+    setState(() {
+      _catalogReady = true;
+      _catalogCount = kEquityCatalog.length;
+      _watched = w.map((e) => e.toUpperCase()).toSet();
+      _hits = searchLocal(_ctrl.text);
+    });
+    _fetchQuotesBackground();
   }
 
   void _onQuery(String q) {
-    // Instant local filter — no network
     setState(() {
       _hits = searchLocal(q);
     });
     _quoteDebounce?.cancel();
-    _quoteDebounce = Timer(const Duration(milliseconds: 450), _fetchQuotesBackground);
+    _quoteDebounce =
+        Timer(const Duration(milliseconds: 450), _fetchQuotesBackground);
   }
 
   Future<void> _fetchQuotesBackground() async {
@@ -96,11 +102,15 @@ class _SearchScreenState extends State<SearchScreen> {
               controller: _ctrl,
               autofocus: true,
               onChanged: _onQuery,
+              enabled: _catalogReady,
               style: const TextStyle(color: AppTheme.textPrimary),
               decoration: InputDecoration(
-                hintText: 'BEL, HPCL, Reliance…',
+                hintText: _catalogReady
+                    ? 'BEL, SUZLON, HPCL, any NSE symbol…'
+                    : 'Loading NSE master…',
                 hintStyle: const TextStyle(color: AppTheme.textMuted),
-                prefixIcon: const Icon(Icons.search, color: AppTheme.textSecondary),
+                prefixIcon:
+                    const Icon(Icons.search, color: AppTheme.textSecondary),
                 filled: true,
                 fillColor: AppTheme.card,
                 border: OutlineInputBorder(
@@ -118,84 +128,86 @@ class _SearchScreenState extends State<SearchScreen> {
               ),
             ),
           ),
-          const Padding(
-            padding: EdgeInsets.symmetric(horizontal: 16),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16),
             child: Align(
               alignment: Alignment.centerLeft,
               child: Text(
-                'Instant local search · Prices load in background · EQ only',
-                style: TextStyle(color: AppTheme.textMuted, fontSize: 11),
+                _catalogReady
+                    ? '$_catalogCount NSE symbols · Instant offline · Prices in background'
+                    : 'Loading full NSE equity list…',
+                style: const TextStyle(color: AppTheme.textMuted, fontSize: 11),
               ),
             ),
           ),
-          if (_quotesLoading)
+          if (_quotesLoading || !_catalogReady)
             const LinearProgressIndicator(color: AppTheme.accent, minHeight: 2),
           Expanded(
-            child: _hits.isEmpty
+            child: !_catalogReady
                 ? const Center(
-                    child: Text(
-                      'No match in catalog. Try BEL, HPCL, RELIANCE…',
-                      style: TextStyle(color: AppTheme.textSecondary),
-                    ),
-                  )
-                : ListView.separated(
-                    padding: const EdgeInsets.fromLTRB(12, 12, 12, 24),
-                    itemCount: _hits.length,
-                    separatorBuilder: (_, __) => const SizedBox(height: 8),
-                    itemBuilder: (_, i) {
-                      final h = _hits[i];
-                      final q = _quotes[h.symbol];
-                      final watched = _watched.contains(h.symbol);
-                      final ltp = q?.ltp;
-                      final src = q?.source ?? '';
-                      return ListTile(
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12),
-                          side: const BorderSide(color: AppTheme.cardBorder),
+                    child: CircularProgressIndicator(color: AppTheme.accent))
+                : _hits.isEmpty
+                    ? const Center(
+                        child: Text(
+                          'No match. Try exact NSE symbol (e.g. SUZLON).',
+                          style: TextStyle(color: AppTheme.textSecondary),
                         ),
-                        tileColor: AppTheme.card,
-                        title: Text(h.symbol, style: const TextStyle(fontWeight: FontWeight.w800)),
-                        subtitle: Text(
-                          '${h.name}'
-                          '${src == 'kotak' ? ' · Kotak' : (src == 'market' ? ' · Market' : '')}',
-                          style: const TextStyle(color: AppTheme.textSecondary, fontSize: 12),
-                        ),
-                        trailing: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            if (ltp != null)
-                              Padding(
-                                padding: const EdgeInsets.only(right: 8),
-                                child: Text(
-                                  '₹${ltp.toStringAsFixed(2)}',
-                                  style: const TextStyle(fontWeight: FontWeight.w700),
-                                ),
-                              )
-                            else
-                              const Padding(
-                                padding: EdgeInsets.only(right: 8),
-                                child: SizedBox(
-                                  width: 14,
-                                  height: 14,
-                                  child: CircularProgressIndicator(strokeWidth: 2, color: AppTheme.textMuted),
-                                ),
-                              ),
-                            IconButton(
-                              icon: Icon(
-                                watched ? Icons.star : Icons.star_border,
-                                color: AppTheme.accent,
-                              ),
-                              onPressed: () => _toggle(h.symbol),
+                      )
+                    : ListView.separated(
+                        padding: const EdgeInsets.fromLTRB(12, 12, 12, 24),
+                        itemCount: _hits.length,
+                        separatorBuilder: (_, __) => const SizedBox(height: 8),
+                        itemBuilder: (_, i) {
+                          final h = _hits[i];
+                          final q = _quotes[h.symbol];
+                          final watched = _watched.contains(h.symbol);
+                          final ltp = q?.ltp;
+                          final src = q?.source ?? '';
+                          return ListTile(
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12),
+                              side: const BorderSide(color: AppTheme.cardBorder),
                             ),
-                          ],
-                        ),
-                        onTap: () => Navigator.push(
-                          context,
-                          MaterialPageRoute(builder: (_) => StockDetailScreen(symbol: h.symbol)),
-                        ),
-                      );
-                    },
-                  ),
+                            tileColor: AppTheme.card,
+                            title: Text(h.symbol,
+                                style: const TextStyle(fontWeight: FontWeight.w800)),
+                            subtitle: Text(
+                              '${h.name}'
+                              '${src == 'kotak' ? ' · Kotak' : (src == 'market' ? ' · Market' : '')}',
+                              style: const TextStyle(
+                                  color: AppTheme.textSecondary, fontSize: 12),
+                            ),
+                            trailing: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                if (ltp != null)
+                                  Padding(
+                                    padding: const EdgeInsets.only(right: 8),
+                                    child: Text(
+                                      '₹${ltp.toStringAsFixed(2)}',
+                                      style: const TextStyle(
+                                          fontWeight: FontWeight.w700),
+                                    ),
+                                  ),
+                                IconButton(
+                                  icon: Icon(
+                                    watched ? Icons.star : Icons.star_border,
+                                    color: AppTheme.accent,
+                                  ),
+                                  onPressed: () => _toggle(h.symbol),
+                                ),
+                              ],
+                            ),
+                            onTap: () => Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (_) =>
+                                    StockDetailScreen(symbol: h.symbol),
+                              ),
+                            ),
+                          );
+                        },
+                      ),
           ),
         ],
       ),

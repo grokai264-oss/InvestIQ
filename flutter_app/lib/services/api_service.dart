@@ -186,4 +186,20 @@ class ApiService {
       return [];
     }
   }
+
+  Future<List<Map<String, dynamic>>> getMovers({String kind = 'gainers', int limit = 10}) async {
+    final uri = Uri.parse('$baseUrl/api/v1/market/movers').replace(queryParameters: {
+      'kind': kind,
+      'limit': '$limit',
+    });
+    try {
+      final response = await http.get(uri).timeout(_cold);
+      if (response.statusCode != 200) return [];
+      final data = jsonDecode(response.body);
+      final list = data['movers'] as List? ?? [];
+      return list.map((e) => Map<String, dynamic>.from(e)).toList();
+    } catch (_) {
+      return [];
+    }
+  }
 }

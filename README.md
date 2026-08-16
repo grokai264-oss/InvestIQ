@@ -9,12 +9,13 @@ Built by **Ashish Sarswat**.
 - Flutter app (desk UI, fl_chart, multi-theme)
 - FastAPI backend on Render: https://investiq-g92v.onrender.com
 
-## v2.1 highlights
-- Continuous factor normalizers (no coarse RSI 55–75 → 100 plateaus)
-- Expanded liquid scoring universe (~120 names toward NIFTY 500 core)
-- Profile theme switcher (Midnight / Paper) + accent palette
-- Stock detail: LiveStockChart shell + humanized timestamps + Risk & Scenario panel
-- Security policy + expanded `.gitignore` (see `SECURITY.md`)
+## v2.2 — Connected Research Layer
+- **Real continuous scoring** via `live_engine.py` (OHLCV → technicals → advanced factors → continuous normalizers → VIX regime weights). **Zero hash-based scores.**
+- **History API**: `GET /api/v1/stocks/{symbol}/history?range=1D|1W|1M|3M|1Y|5Y`
+- Flutter chart wired: `ApiService.getHistory` → `LiveStockChart` with timeframe chips
+- Portfolio optional gate: `PORTFOLIO_ACCESS_TOKEN` + `X-InvestIQ-Token` header
+- Liquid scoring universe ~113 names toward NIFTY 500 core (full constituents next)
+- Profile: Ashish Sarswat credit, theme switcher (Midnight / Paper + accents), honest methodology
 
 ## Features
 - Multi-horizon rankings (daily / monthly / yearly)
@@ -28,17 +29,15 @@ Built by **Ashish Sarswat**.
 - No order/trade endpoints
 - Kotak secrets **only** in Render Environment Variables
 - Analytical signals only
-- See [SECURITY.md](SECURITY.md) for rotation and Git history guidance
+- See [SECURITY.md](SECURITY.md)
 
 ## Backend (local)
 ```bash
 cd backend
 pip install -r requirements.txt
-# copy env vars — never commit .env
+# secrets only in env — never commit .env
 uvicorn api.main:app --host 0.0.0.0 --port 8000
 ```
-
-Note: `backend/api/main.py` in this tree is a deployment placeholder relative to the live Render service. Engines under `backend/engines/` are the shared research core.
 
 ## Flutter
 ```bash
@@ -48,3 +47,8 @@ flutter run
 ```
 
 Optional: `--dart-define=API_BASE_URL=https://your-host`
+
+## Next layers (honest)
+- Point-in-time NIFTY 500 membership + free-float weights
+- Redis latest-price + Kotak WebSocket ticks
+- Cross-sectional percentiles / sector neutrality / walk-forward lab

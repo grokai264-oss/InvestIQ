@@ -1,5 +1,4 @@
-"""
-Settings — all secrets from environment variables only.
+"""InvestIQ settings — secrets from environment variables only.
 Never commit real values to GitHub.
 """
 from __future__ import annotations
@@ -17,6 +16,9 @@ class Settings(BaseSettings):
     KOTAK_MPIN: Optional[str] = None
     KOTAK_TOTP_SECRET: Optional[str] = None
     KOTAK_ENVIRONMENT: str = "prod"
+
+    # Optional portfolio gate (set on Render for private single-user)
+    PORTFOLIO_ACCESS_TOKEN: Optional[str] = None
 
     # Optional later
     REDIS_HOST: str = "localhost"

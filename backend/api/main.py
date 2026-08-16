@@ -1,15 +1,15 @@
-"""InvestIQ FastAPI entry — read-only research API.
+"""InvestIQ FastAPI entry — read-only research API (v2.2 Connected Research).
 
-This module provides a usable local/dev surface using the engines in-repo.
-Production on Render may run a fuller worker graph; keep secrets in env only.
+Secrets only via environment variables. Never places orders.
 """
 from __future__ import annotations
 
+import secrets
 import time
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
 
-from fastapi import FastAPI, Query
+from fastapi import FastAPI, Query, Header, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from loguru import logger
 
@@ -24,10 +24,11 @@ except Exception:  # pragma: no cover
 
 app = FastAPI(
     title="InvestIQ API",
-    version="2.1.0",
-    description="Read-only research API. Never places orders.",
+    version="2.2.0",
+    description="Read-only research API. Continuous OHLCV scoring. Never places orders.",
 )
 
+# CORS: keep permissive for private single-user desk; tighten when public auth lands.
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -43,10 +44,11 @@ _start = time.time()
 def health() -> Dict[str, Any]:
     return {
         "status": "ok",
-        "engine": "2.1",
+        "engine": "2.2",
         "uptime_sec": round(time.time() - _start, 1),
         "kotak_configured": settings.kotak_configured,
         "universe_size": len(settings.symbols),
+        "portfolio_token_required": bool(getattr(settings, "PORTFOLIO_ACCESS_TOKEN", None)),
     }
 
 
@@ -59,7 +61,7 @@ def api_search(q: str = "", limit: int = Query(25, ge=1, le=50)) -> Dict[str, An
 def api_quotes(symbols: str = "") -> Dict[str, Any]:
     syms = [s.strip() for s in symbols.split(",") if s.strip()]
     holdings = None
-    if kotak is not None and settings.kotak_configured and kotak.ready:
+    if kotak is not None and settings.kotak_configured and getattr(kotak, "ready", False):
         try:
             holdings = kotak.normalized_holdings()
         except Exception as e:
@@ -69,7 +71,6 @@ def api_quotes(symbols: str = "") -> Dict[str, Any]:
 
 @app.get("/api/v1/indices")
 def api_indices() -> Dict[str, Any]:
-    # Lightweight index quotes via Yahoo symbols
     idx = [
         ("NIFTY 50", "^NSEI"),
         ("BANK NIFTY", "^NSEBANK"),
@@ -78,7 +79,6 @@ def api_indices() -> Dict[str, Any]:
     out: List[Dict[str, Any]] = []
     try:
         import yfinance as yf
-
         for name, ticker in idx:
             try:
                 t = yf.Ticker(ticker)
@@ -88,13 +88,7 @@ def api_indices() -> Dict[str, Any]:
                 last = float(hist["Close"].iloc[-1])
                 prev = float(hist["Close"].iloc[-2]) if len(hist) > 1 else last
                 chg = ((last - prev) / prev * 100.0) if prev else 0.0
-                out.append(
-                    {
-                        "name": name,
-                        "ltp": round(last, 2),
-                        "change_pct": round(chg, 2),
-                    }
-                )
+                out.append({"name": name, "ltp": round(last, 2), "change_pct": round(chg, 2)})
             except Exception:
                 continue
     except Exception as e:
@@ -103,8 +97,18 @@ def api_indices() -> Dict[str, Any]:
 
 
 @app.get("/api/v1/portfolio/summary")
-def api_portfolio() -> Dict[str, Any]:
-    """Single-user private path. Do not expose publicly without auth."""
+def api_portfolio(
+    x_investiq_token: Optional[str] = Header(default=None, alias="X-InvestIQ-Token"),
+) -> Dict[str, Any]:
+    """Single-user private path.
+
+    If PORTFOLIO_ACCESS_TOKEN is set in env, require matching X-InvestIQ-Token header
+    (constant-time compare). Otherwise still gated by kotak_configured.
+    """
+    expected = getattr(settings, "PORTFOLIO_ACCESS_TOKEN", None)
+    if expected:
+        if not x_investiq_token or not secrets.compare_digest(x_investiq_token, expected):
+            raise HTTPException(status_code=401, detail="Portfolio requires valid X-InvestIQ-Token")
     if not settings.kotak_configured or kotak is None:
         return {
             "linked": False,
@@ -115,7 +119,7 @@ def api_portfolio() -> Dict[str, Any]:
             "holdings": [],
         }
     try:
-        if not kotak.ready:
+        if not getattr(kotak, "ready", False):
             ok = kotak.connect(
                 consumer_key=settings.KOTAK_CONSUMER_KEY or "",
                 mobile=settings.KOTAK_MOBILE or "",
@@ -127,7 +131,7 @@ def api_portfolio() -> Dict[str, Any]:
             if not ok:
                 return {
                     "linked": False,
-                    "message": kotak.last_error or "Kotak session failed",
+                    "message": getattr(kotak, "last_error", None) or "Kotak session failed",
                     "total_value": 0,
                     "total_pnl": 0,
                     "total_pnl_pct": 0,
@@ -161,105 +165,80 @@ def api_portfolio() -> Dict[str, Any]:
 @app.get("/api/v1/recommendations/top")
 def api_top(
     timeframe: str = "daily",
-    limit: int = Query(10, ge=1, le=30),
+    limit: int = Query(10, ge=1, le=25),
 ) -> Dict[str, Any]:
-    """Lightweight ranking over configured liquid universe.
+    """Rank liquid universe with continuous v2.2 factors + VIX regime weights.
 
-    Full Engine 3.0 batch pipeline is the next production worker.
-    This path returns honest structure so the Flutter desk stays useful.
+    NO hash-based scores. Uses live_engine → technical + advanced_factors + scoring.
     """
-    from engines.advanced_factors import india_vix, volatility_regime, regime_weights
+    from engines.live_engine import rank_universe
 
-    vix = india_vix()
-    regime = volatility_regime(vix)
-    weights = regime_weights(timeframe)
-    symbols = settings.symbols[: max(limit * 3, 30)]
-    quotes = {q["symbol"]: q for q in quotes_for(symbols)}
-
-    recs: List[Dict[str, Any]] = []
-    for sym in symbols:
-        q = quotes.get(sym) or {}
-        ltp = q.get("ltp")
-        # Placeholder composite until full OHLCV batch is wired in workers
-        base = 55.0
-        if ltp:
-            base += min(15.0, (hash(sym) % 20))
-        score = round(min(92.0, base), 1)
-        factors = {
-            "score_rsi": 50.0 + (hash(sym + "r") % 40),
-            "score_ema": 50.0 + (hash(sym + "e") % 35),
-            "score_momentum": 50.0 + (hash(sym + "m") % 40),
-            "score_vwap": 50.0 + (hash(sym + "v") % 30),
-            "score_rvol": 40.0 + (hash(sym + "vol") % 40),
-            "score_value": 45.0 + (hash(sym + "val") % 30),
-        }
-        factors = {k: float(min(100.0, v)) for k, v in factors.items()}
-        contrib = {k: round(v * weights.get(k.replace("score_", ""), 0.1), 2) for k, v in factors.items()}
-        recs.append(
-            {
-                "symbol": sym,
-                "timeframe": timeframe,
-                "action": "WATCH" if score >= 60 else "HOLD",
-                "confidence_score": round(min(0.85, score / 120.0), 3),
-                "entry_price": ltp,
-                "stop_loss": round(ltp * 0.97, 2) if ltp else None,
-                "target_price": round(ltp * 1.05, 2) if ltp else None,
-                "final_score": score,
-                "factors": factors,
-                "weights": weights,
-                "contributions": contrib,
-                "rationale": [
-                    f"regime={regime} (India VIX {vix:.1f})",
-                    "Continuous normalizers active (engine 2.1)",
-                    "Full cross-sectional NIFTY 500 ranking is the next data layer",
-                ],
-                "disclaimer": "Analytical signal only. InvestIQ never places orders.",
-                "generated_at": datetime.now(timezone.utc).isoformat(),
-                "data_source": q.get("source") or "market",
-                "engine_version": "2.1",
-                "regime": f"{regime} (India VIX {vix:.1f})",
-                "raw_inputs": {"ltp": ltp, "vix": vix},
-            }
-        )
-
-    recs.sort(key=lambda x: x["final_score"], reverse=True)
-    return {"recommendations": recs[:limit], "regime": regime, "vix": vix}
+    pool = settings.symbols[: min(40, max(20, limit * 3))]
+    return rank_universe(pool, timeframe=timeframe, limit=limit, max_workers=6)
 
 
 @app.get("/api/v1/recommendations/{symbol}")
 def api_one(symbol: str, timeframe: str = "daily") -> Dict[str, Any]:
-    top = api_top(timeframe=timeframe, limit=80)
-    for r in top["recommendations"]:
-        if r["symbol"].upper() == symbol.upper():
-            return r
-    # Fallback single
-    qs = quotes_for([symbol])
-    q = qs[0] if qs else {}
-    vix = 15.0
-    try:
-        from engines.advanced_factors import india_vix
+    from engines.live_engine import score_symbol
+    return score_symbol(symbol, timeframe=timeframe)
 
-        vix = india_vix()
-    except Exception:
-        pass
-    ltp = q.get("ltp")
+
+@app.get("/api/v1/stocks/{symbol}/history")
+def api_history(
+    symbol: str,
+    range: str = Query("1M", description="1D|1W|1M|3M|1Y|5Y"),
+) -> Dict[str, Any]:
+    """OHLCV history for charts. Cached via ohlcv_cache (~15 min)."""
+    from engines.data_fetcher import LiveDataFetcher
+    import pandas as pd
+
+    period_map = {
+        "1D": ("5d", "1h"),
+        "1W": ("1mo", "1d"),
+        "1M": ("3mo", "1d"),
+        "3M": ("6mo", "1d"),
+        "1Y": ("1y", "1d"),
+        "5Y": ("5y", "1wk"),
+    }
+    period, interval = period_map.get(range.upper(), ("3mo", "1d"))
+    sym = symbol.upper().replace(".NS", "")
+    points: List[Dict[str, Any]] = []
+    try:
+        import yfinance as yf
+        t = yf.Ticker(f"{sym}.NS")
+        hist = t.history(period=period, interval=interval, auto_adjust=True)
+        if hist is not None and not hist.empty:
+            hist = hist.dropna(subset=["Close"])
+            for ts, row in hist.iterrows():
+                points.append({
+                    "t": pd.Timestamp(ts).isoformat(),
+                    "c": round(float(row["Close"]), 2),
+                    "o": round(float(row.get("Open", row["Close"])), 2),
+                    "h": round(float(row.get("High", row["Close"])), 2),
+                    "l": round(float(row.get("Low", row["Close"])), 2),
+                    "v": int(row.get("Volume", 0) or 0),
+                })
+    except Exception as e:
+        logger.debug(f"history yf {sym}: {e}")
+        try:
+            days = {"1D": 5, "1W": 10, "1M": 40, "3M": 90, "1Y": 260, "5Y": 1200}.get(range.upper(), 40)
+            df = LiveDataFetcher.fetch_daily_ohlcv(sym, days=days)
+            for ts, row in df.iterrows():
+                points.append({
+                    "t": pd.Timestamp(ts).isoformat(),
+                    "c": round(float(row["close"]), 2),
+                    "o": round(float(row["open"]), 2),
+                    "h": round(float(row["high"]), 2),
+                    "l": round(float(row["low"]), 2),
+                    "v": int(row.get("volume", 0) or 0),
+                })
+        except Exception as e2:
+            logger.debug(f"history fallback {sym}: {e2}")
+
     return {
-        "symbol": symbol.upper(),
-        "timeframe": timeframe,
-        "action": "HOLD",
-        "confidence_score": 0.4,
-        "entry_price": ltp,
-        "stop_loss": round(ltp * 0.97, 2) if ltp else None,
-        "target_price": round(ltp * 1.05, 2) if ltp else None,
-        "final_score": 50.0,
-        "factors": {"score_rsi": 50.0, "score_ema": 50.0, "score_momentum": 50.0},
-        "weights": {},
-        "contributions": {},
-        "rationale": ["Limited data for this symbol in current batch"],
-        "disclaimer": "Analytical signal only. InvestIQ never places orders.",
-        "generated_at": datetime.now(timezone.utc).isoformat(),
-        "data_source": q.get("source") or "unavailable",
-        "engine_version": "2.1",
-        "regime": f"mid (India VIX {vix:.1f})",
-        "raw_inputs": {"ltp": ltp},
+        "symbol": sym,
+        "range": range.upper(),
+        "points": points,
+        "count": len(points),
+        "source": "yahoo",
     }

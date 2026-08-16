@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+import '../main.dart';
 import '../services/profile_store.dart';
 import '../services/api_service.dart';
 import '../theme/app_theme.dart';
@@ -16,6 +18,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
   String? _name;
   String _horizon = 'daily';
   int _watchCount = 0;
+  String _themeId = 'midnight';
+  String _accentId = 'teal';
 
   @override
   void initState() {
@@ -26,11 +30,17 @@ class _ProfileScreenState extends State<ProfileScreen> {
   Future<void> _load() async {
     final n = await _store.getDisplayName();
     final w = await _store.getWatchlist();
+    final h = await _store.getHorizon();
+    final t = await _store.getThemeId();
+    final a = await _store.getAccentId();
     if (!mounted) return;
     setState(() {
       _name = n;
       _ctrl.text = n ?? '';
       _watchCount = w.length;
+      _horizon = h;
+      _themeId = t;
+      _accentId = a;
     });
   }
 
@@ -47,9 +57,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
   Widget build(BuildContext context) {
     final display = (_name == null || _name!.isEmpty) ? 'Researcher' : _name!;
     final initial = display.isNotEmpty ? display[0].toUpperCase() : 'R';
+    final tc = context.watch<ThemeController>();
 
     return Scaffold(
-      backgroundColor: AppTheme.bg,
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       body: SafeArea(
         child: ListView(
           padding: const EdgeInsets.fromLTRB(20, 16, 20, 40),
@@ -96,9 +107,42 @@ class _ProfileScreenState extends State<ProfileScreen> {
             const SizedBox(height: 12),
             _statRow([
               _stat('Watchlist', '$_watchCount'),
-              _stat('Universe', 'NIFTY 500'),
+              _stat('Universe', '~120 liquid'),
               _stat('Horizon', _horizon),
             ]),
+            const SizedBox(height: 28),
+            Text('APPEARANCE', style: AppTheme.sectionLabel),
+            const SizedBox(height: 10),
+            const Text('Theme', style: TextStyle(color: AppTheme.textSecondary, fontSize: 12)),
+            const SizedBox(height: 8),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                _chip('Midnight', _themeId == 'midnight', () async {
+                  await tc.setThemeId('midnight');
+                  setState(() => _themeId = 'midnight');
+                }),
+                _chip('Paper', _themeId == 'paper', () async {
+                  await tc.setThemeId('paper');
+                  setState(() => _themeId = 'paper');
+                }),
+              ],
+            ),
+            const SizedBox(height: 14),
+            const Text('Accent', style: TextStyle(color: AppTheme.textSecondary, fontSize: 12)),
+            const SizedBox(height: 8),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                for (final id in ['teal', 'blue', 'violet', 'emerald', 'amber'])
+                  _chip(id[0].toUpperCase() + id.substring(1), _accentId == id, () async {
+                    await tc.setAccentId(id);
+                    setState(() => _accentId = id);
+                  }),
+              ],
+            ),
             const SizedBox(height: 28),
             Text('PREFERENCES', style: AppTheme.sectionLabel),
             const SizedBox(height: 10),
@@ -143,7 +187,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 return Padding(
                   padding: const EdgeInsets.only(right: 8),
                   child: GestureDetector(
-                    onTap: () => setState(() => _horizon = h),
+                    onTap: () async {
+                      setState(() => _horizon = h);
+                      await _store.setHorizon(h);
+                    },
                     child: Container(
                       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
                       decoration: BoxDecoration(
@@ -169,18 +216,20 @@ class _ProfileScreenState extends State<ProfileScreen> {
             const SizedBox(height: 28),
             Text('DATA & METHODOLOGY', style: AppTheme.sectionLabel),
             const SizedBox(height: 8),
-            _linkRow('Market universe', 'NIFTY 500 structure'),
-            _linkRow('Scoring model', 'Multi-factor + VIX regime weights'),
+            _linkRow('Market universe', 'Liquid core (~120) · full NSE search catalog'),
+            _linkRow('Scoring model', 'Continuous factors + VIX regime weights'),
             _linkRow('FII / DII', 'Market-wide only — never stock-specific'),
             _linkRow('Confidence', 'Score-distance (not calibrated hit-rate)'),
-            _linkRow('Market-cap map', 'Structural shares · live pipeline next'),
+            _linkRow('Market-cap map', 'Structural shares · live free-float next'),
+            _linkRow('Quotes', 'Near-live poll (cache ~20s) · WebSocket next'),
             const SizedBox(height: 28),
             Text('PRIVACY & SAFETY', style: AppTheme.sectionLabel),
             const SizedBox(height: 8),
             _bullet('Analytical rankings only — no buy / sell / order APIs'),
-            _bullet('Kotak credentials stay on the server'),
+            _bullet('Kotak credentials stay on the server (env only)'),
             _bullet('Display name & watchlist stay on this phone'),
             _bullet('100% read-only product surface'),
+            _bullet('Single-user private research until auth is added'),
             const SizedBox(height: 28),
             Text('CONNECTION', style: AppTheme.sectionLabel),
             const SizedBox(height: 8),
@@ -193,10 +242,53 @@ class _ProfileScreenState extends State<ProfileScreen> {
               ),
             ),
             const SizedBox(height: 28),
+            Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: AppTheme.surface,
+                borderRadius: BorderRadius.circular(14),
+                border: Border.all(color: AppTheme.border),
+              ),
+              child: Row(
+                children: [
+                  Container(
+                    width: 44,
+                    height: 44,
+                    decoration: BoxDecoration(
+                      gradient: AppTheme.brandGradient,
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: const Icon(Icons.code_rounded, color: Colors.black, size: 22),
+                  ),
+                  const SizedBox(width: 14),
+                  const Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'InvestIQ Core Architecture',
+                          style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700),
+                        ),
+                        SizedBox(height: 2),
+                        Text(
+                          'Built by Ashish Sarswat',
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: AppTheme.accent,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 20),
             const BrandMark(size: 40, showWordmark: true, showTagline: true),
             const SizedBox(height: 12),
             const Text(
-              'InvestIQ 1.6.0',
+              'InvestIQ 2.1 · Engine 2.1 · Read-only',
               style: TextStyle(color: AppTheme.textMuted, fontSize: 12),
             ),
             const SizedBox(height: 4),
@@ -205,6 +297,30 @@ class _ProfileScreenState extends State<ProfileScreen> {
               style: TextStyle(color: AppTheme.textMuted, fontSize: 12, fontStyle: FontStyle.italic),
             ),
           ],
+        ),
+      ),
+    );
+  }
+
+  Widget _chip(String label, bool on, VoidCallback onTap) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+        decoration: BoxDecoration(
+          color: on ? AppTheme.accentSoft : AppTheme.surface,
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(
+            color: on ? AppTheme.accent.withOpacity(0.5) : AppTheme.border,
+          ),
+        ),
+        child: Text(
+          label,
+          style: TextStyle(
+            color: on ? AppTheme.accent : AppTheme.textSecondary,
+            fontWeight: FontWeight.w600,
+            fontSize: 12,
+          ),
         ),
       ),
     );

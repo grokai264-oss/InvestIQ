@@ -103,7 +103,6 @@ class AppTheme {
   static List<BoxShadow> get cardShadow => const [];
 
   // ─── DECORATIONS ────────────────────────────────────────────────
-  /// Prefer this over heavy bordered cards. Surfaces speak quietly.
   static BoxDecoration surfaceDecoration({
     Color? color,
     double radius = radiusMd,
@@ -127,17 +126,44 @@ class AppTheme {
         margin: const EdgeInsets.symmetric(vertical: 4),
       );
 
-  // ─── THEME DATA ─────────────────────────────────────────────────
-  static ThemeData get dark {
+  static Color accentFor(String accentId) {
+    switch (accentId) {
+      case 'blue':
+        return accentBlue;
+      case 'violet':
+        return accentViolet;
+      case 'amber':
+        return accentAmber;
+      case 'emerald':
+        return accentEmerald;
+      case 'teal':
+      default:
+        return accentTeal;
+    }
+  }
+
+  /// Build theme from ProfileStore ids.
+  static ThemeData themeFor(String themeId, {String accentId = 'teal'}) {
+    final a = accentFor(accentId);
+    if (themeId == 'paper' || themeId == 'light') {
+      return _light(a);
+    }
+    // midnight / graphite / default → dark
+    return _dark(a);
+  }
+
+  static ThemeData get dark => _dark(accent);
+
+  static ThemeData _dark(Color primary) {
     final base = ThemeData.dark(useMaterial3: true);
     return base.copyWith(
       scaffoldBackgroundColor: bg,
-      primaryColor: accent,
+      primaryColor: primary,
       cardColor: surface,
       dividerColor: borderSubtle,
       splashFactory: InkSparkle.splashFactory,
       colorScheme: base.colorScheme.copyWith(
-        primary: accent,
+        primary: primary,
         secondary: violet,
         surface: surface,
         onPrimary: textInverse,
@@ -163,7 +189,7 @@ class AppTheme {
       ),
       navigationBarTheme: NavigationBarThemeData(
         backgroundColor: surface,
-        indicatorColor: accentSoft,
+        indicatorColor: primary.withOpacity(0.15),
         elevation: 0,
         height: 64,
         labelTextStyle: WidgetStateProperty.resolveWith((s) {
@@ -171,18 +197,74 @@ class AppTheme {
           return TextStyle(
             fontSize: 11,
             fontWeight: selected ? FontWeight.w600 : FontWeight.w500,
-            color: selected ? accent : textMuted,
+            color: selected ? primary : textMuted,
           );
         }),
       ),
       chipTheme: ChipThemeData(
         backgroundColor: surfaceElevated,
-        selectedColor: accentSoft,
+        selectedColor: primary.withOpacity(0.15),
         labelStyle: const TextStyle(fontSize: 12, color: textSecondary),
         side: const BorderSide(color: border),
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(20),
         ),
+      ),
+    );
+  }
+
+  static ThemeData _light(Color primary) {
+    const canvas = Color(0xFFF6F8FA);
+    const surf = Color(0xFFFFFFFF);
+    const text = Color(0xFF101828);
+    const secondary = Color(0xFF667085);
+    const muted = Color(0xFF98A2B3);
+    const hairline = Color(0xFFE4E7EC);
+    final base = ThemeData.light(useMaterial3: true);
+    return base.copyWith(
+      scaffoldBackgroundColor: canvas,
+      primaryColor: primary,
+      cardColor: surf,
+      dividerColor: hairline,
+      splashFactory: InkSparkle.splashFactory,
+      colorScheme: base.colorScheme.copyWith(
+        primary: primary,
+        secondary: const Color(0xFF2563EB),
+        surface: surf,
+        onPrimary: Colors.white,
+        onSurface: text,
+        error: const Color(0xFFD92D20),
+      ),
+      textTheme: GoogleFonts.interTextTheme(base.textTheme).apply(
+        bodyColor: text,
+        displayColor: text,
+      ),
+      appBarTheme: AppBarTheme(
+        backgroundColor: canvas,
+        elevation: 0,
+        scrolledUnderElevation: 0,
+        centerTitle: false,
+        titleTextStyle: GoogleFonts.inter(
+          color: text,
+          fontWeight: FontWeight.w600,
+          fontSize: 17,
+          letterSpacing: -0.2,
+        ),
+        iconTheme: const IconThemeData(color: secondary, size: 22),
+      ),
+      navigationBarTheme: NavigationBarThemeData(
+        backgroundColor: surf,
+        indicatorColor: primary.withOpacity(0.12),
+        elevation: 0,
+        height: 64,
+        labelTextStyle: WidgetStateProperty.resolveWith((s) {
+          final selected = s.contains(WidgetState.selected);
+          return TextStyle(
+            fontSize: 11,
+            fontWeight: selected ? FontWeight.w600 : FontWeight.w500,
+            color: selected ? primary : muted,
+          );
+        }),
       ),
     );
   }

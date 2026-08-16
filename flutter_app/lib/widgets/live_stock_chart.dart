@@ -215,7 +215,8 @@ class _LiveStockChartState extends State<LiveStockChart> {
                         enabled: true,
                         handleBuiltInTouches: true,
                         touchTooltipData: LineTouchTooltipData(
-                          getTooltipColor: (_) => AppTheme.surfaceElevated,
+                          // fl_chart 0.66.x API (CI resolves ^0.66.0 → 0.66.2)
+                          tooltipBgColor: AppTheme.surfaceElevated,
                           tooltipRoundedRadius: 8,
                           tooltipPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
                           getTooltipItems: (touched) {

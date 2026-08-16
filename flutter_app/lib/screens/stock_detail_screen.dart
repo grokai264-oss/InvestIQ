@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:fl_chart/fl_chart.dart';
 import '../models/recommendation.dart';
 import '../services/api_service.dart';
 import '../services/profile_store.dart';
@@ -27,7 +26,7 @@ class _StockDetailScreenState extends State<StockDetailScreen>
   bool _watched = false;
   bool _loading = true;
   bool _chartLoading = true;
-  List<FlSpot> _spots = const [];
+  List<Map<String, dynamic>> _candles = const [];
   late TabController _tabs;
 
   @override
@@ -55,7 +54,6 @@ class _StockDetailScreenState extends State<StockDetailScreen>
         _quote = quotes[widget.symbol.toUpperCase()];
         _loading = false;
       });
-      // Load chart after overview so the desk paints quickly
       _loadChart('1M');
     } catch (_) {
       if (!mounted) return;
@@ -70,20 +68,15 @@ class _StockDetailScreenState extends State<StockDetailScreen>
     setState(() => _chartLoading = true);
     try {
       final points = await _api.getHistory(widget.symbol, range: range);
-      final spots = <FlSpot>[];
-      for (var i = 0; i < points.length; i++) {
-        final c = points[i]['c'];
-        if (c is num) spots.add(FlSpot(i.toDouble(), c.toDouble()));
-      }
       if (!mounted) return;
       setState(() {
-        _spots = spots;
+        _candles = points;
         _chartLoading = false;
       });
     } catch (_) {
       if (!mounted) return;
       setState(() {
-        _spots = const [];
+        _candles = const [];
         _chartLoading = false;
       });
     }
@@ -200,8 +193,8 @@ class _StockDetailScreenState extends State<StockDetailScreen>
         LiveStockChart(
           symbol: widget.symbol,
           isLoading: _chartLoading,
-          pricePoints: _spots,
-          note: _spots.isEmpty && !_chartLoading
+          candles: _candles,
+          note: _candles.isEmpty && !_chartLoading
               ? 'No history returned for this range yet.'
               : null,
           onTimeframeChanged: (tf) => _loadChart(tf),
@@ -251,18 +244,48 @@ class _StockDetailScreenState extends State<StockDetailScreen>
     }).toList();
   }
 
+  List<(String, double)> _pillarScores(Recommendation r) {
+    double g(List<String> keys) {
+      final vals = keys.map((k) => r.factors[k]).whereType<num>().map((e) => e.toDouble()).toList();
+      if (vals.isEmpty) return 50.0;
+      return vals.reduce((a, b) => a + b) / vals.length;
+    }
+    return [
+      ('Momentum', g(['score_momentum', 'score_rsi', 'score_macd'])),
+      ('Trend', g(['score_ema', 'score_vwap'])),
+      ('Quality', g(['score_low_vol'])),
+      ('Value', g(['score_value'])),
+      ('Risk', g(['score_low_vol', 'score_rvol'])),
+      ('Ownership', g(['score_value'])),
+    ];
+  }
+
   Widget _factors(Recommendation r) {
+    final pillars = _pillarScores(r);
+    final radarMap = {for (final p in pillars) 'score_${p.$1.toLowerCase()}': p.$2};
     return ListView(
       padding: const EdgeInsets.fromLTRB(16, 16, 16, 40),
       children: [
         Text('FACTOR PROFILE', style: AppTheme.sectionLabel),
-        const SizedBox(height: 12),
+        const SizedBox(height: 4),
+        Text('Six research pillars (0–100). Technical detail below.', style: AppTheme.caption),
+        const SizedBox(height: 14),
+        ...pillars.map((p) => FactorBar(
+              label: p.$1,
+              value: p.$2,
+              color: p.$2 >= 80
+                  ? AppTheme.green
+                  : (p.$2 >= 60
+                      ? AppTheme.accent
+                      : (p.$2 >= 40 ? AppTheme.textSecondary : AppTheme.red)),
+            )),
+        const SizedBox(height: 20),
         if (r.factors.isNotEmpty)
-          SizedBox(height: 220, child: FactorRadar(factors: r.factors))
+          FactorRadar(factors: radarMap)
         else
           Text('No factor breakdown available.', style: AppTheme.body),
         const SizedBox(height: 24),
-        Text('ALL FACTORS', style: AppTheme.sectionLabel),
+        Text('TECHNICAL DETAIL', style: AppTheme.sectionLabel),
         const SizedBox(height: 12),
         ...r.factors.entries.map((e) {
           final label = Recommendation.factorLabels[e.key] ?? e.key.replaceAll('score_', '');

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:fl_chart/fl_chart.dart';
 import '../models/recommendation.dart';
 import '../services/api_service.dart';
 import '../services/profile_store.dart';
@@ -7,6 +8,7 @@ import '../theme/app_theme.dart';
 import '../widgets/factor_radar.dart';
 import '../widgets/execution_preflight.dart';
 import '../widgets/iq_primitives.dart';
+import '../widgets/live_stock_chart.dart';
 
 /// Flagship company research — Overview | Factors | Audit
 class StockDetailScreen extends StatefulWidget {
@@ -21,8 +23,11 @@ class _StockDetailScreenState extends State<StockDetailScreen>
   final _api = ApiService();
   final _store = ProfileStore();
   Recommendation? _rec;
+  QuoteTick? _quote;
   bool _watched = false;
   bool _loading = true;
+  bool _chartLoading = true;
+  List<FlSpot> _spots = const [];
   late TabController _tabs;
 
   @override
@@ -42,15 +47,23 @@ class _StockDetailScreenState extends State<StockDetailScreen>
     try {
       final r = await _api.getSingleRecommendation(symbol: widget.symbol);
       final w = await _store.isWatched(widget.symbol);
+      final quotes = await _api.getQuotes([widget.symbol]);
       if (!mounted) return;
       setState(() {
         _rec = r;
         _watched = w;
+        _quote = quotes[widget.symbol.toUpperCase()];
         _loading = false;
+        // Chart series comes from a future history API; keep honest empty state for now.
+        _spots = const [];
+        _chartLoading = false;
       });
     } catch (_) {
       if (!mounted) return;
-      setState(() => _loading = false);
+      setState(() {
+        _loading = false;
+        _chartLoading = false;
+      });
     }
   }
 
@@ -110,7 +123,10 @@ class _StockDetailScreenState extends State<StockDetailScreen>
   }
 
   Widget _overview(Recommendation r) {
-    final price = r.entryPrice;
+    final live = _quote?.ltp;
+    final change = _quote?.changePct;
+    final price = live ?? r.entryPrice;
+
     return ListView(
       padding: const EdgeInsets.fromLTRB(16, 16, 16, 40),
       children: [
@@ -119,17 +135,51 @@ class _StockDetailScreenState extends State<StockDetailScreen>
           BreadcrumbItem(widget.symbol),
         ]),
         const SizedBox(height: 16),
-        Text(widget.symbol, style: AppTheme.display.copyWith(fontSize: 28)),
-        const SizedBox(height: 4),
-        if (price != null)
-          Text('₹${price.toStringAsFixed(2)}', style: AppTheme.monoLarge)
-        else
-          Text('Price on request', style: AppTheme.body),
+        Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(widget.symbol, style: AppTheme.display.copyWith(fontSize: 26)),
+                  const SizedBox(height: 4),
+                  if (price != null)
+                    Text('₹${price.toStringAsFixed(2)}', style: AppTheme.monoLarge)
+                  else
+                    Text('Price on request', style: AppTheme.body),
+                  if (change != null) ...[
+                    const SizedBox(height: 2),
+                    Text(
+                      '${change >= 0 ? '+' : ''}${change.toStringAsFixed(2)}%',
+                      style: TextStyle(
+                        color: AppTheme.performance(change),
+                        fontWeight: FontWeight.w600,
+                        fontSize: 13,
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+            ),
+            FreshnessPill(
+              state: live != null ? DataFreshness.live : DataFreshness.cached,
+              label: live != null ? 'LIVE' : 'RESEARCH',
+            ),
+          ],
+        ),
         const SizedBox(height: 6),
         ProvenanceLine(
           source: r.dataSource.toUpperCase(),
           updatedAt: r.generatedAt.isNotEmpty ? r.generatedAt : null,
           note: 'Engine ${r.engineVersion}',
+        ),
+        const SizedBox(height: 16),
+        LiveStockChart(
+          symbol: widget.symbol,
+          isLoading: _chartLoading,
+          pricePoints: _spots,
+          note: 'Historical candles require the market-data history service (next layer).',
         ),
         const SizedBox(height: 24),
         ScoreAnatomy(

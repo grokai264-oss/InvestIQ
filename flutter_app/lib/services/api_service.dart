@@ -172,4 +172,18 @@ class ApiService {
       return {};
     }
   }
+
+  Future<List<Map<String, dynamic>>> getHistory(String symbol, {String range = '1M'}) async {
+    final uri = Uri.parse('$baseUrl/api/v1/stocks/${symbol.toUpperCase()}/history')
+        .replace(queryParameters: {'range': range});
+    try {
+      final response = await http.get(uri).timeout(_cold);
+      if (response.statusCode != 200) return [];
+      final data = jsonDecode(response.body);
+      final list = data['points'] as List? ?? [];
+      return list.map((e) => Map<String, dynamic>.from(e)).toList();
+    } catch (_) {
+      return [];
+    }
+  }
 }

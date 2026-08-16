@@ -1,10 +1,24 @@
 # Python
 backend/.venv/
 backend/.env
+backend/.env.*
+.env
+.env.*
 backend/**/__pycache__/
 backend/**/*.pyc
 *.egg-info/
 .pytest_cache/
+
+# Secrets & credentials — never commit
+*.pem
+*.key
+*.p12
+*.pfx
+kotak_session.json
+**/session*.json
+**/credentials*.json
+**/secrets*.json
+**/tokens*.json
 
 # Flutter
 flutter_app/.dart_tool/
@@ -19,3 +33,7 @@ flutter_app/pubspec.lock
 .vscode/
 .DS_Store
 *.swp
+
+# Local data / caches
+*.log
+.cache/

@@ -50,6 +50,30 @@ class FreshnessPill extends StatelessWidget {
   }
 }
 
+String humanizeTimestamp(String? raw) {
+  if (raw == null || raw.isEmpty) return '';
+  try {
+    final dt = DateTime.parse(raw).toLocal();
+    final now = DateTime.now();
+    final diff = now.difference(dt);
+    if (diff.inSeconds < 45) return 'Updated just now';
+    if (diff.inMinutes < 60) return 'Updated ${diff.inMinutes} min ago';
+    if (diff.inHours < 24 && dt.day == now.day) {
+      final h = dt.hour % 12 == 0 ? 12 : dt.hour % 12;
+      final m = dt.minute.toString().padLeft(2, '0');
+      final ampm = dt.hour >= 12 ? 'PM' : 'AM';
+      return 'Updated $h:$m $ampm';
+    }
+    final months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    final h = dt.hour % 12 == 0 ? 12 : dt.hour % 12;
+    final m = dt.minute.toString().padLeft(2, '0');
+    final ampm = dt.hour >= 12 ? 'PM' : 'AM';
+    return '${dt.day} ${months[dt.month - 1]} · $h:$m $ampm';
+  } catch (_) {
+    return raw.length > 19 ? raw.substring(0, 19) : raw;
+  }
+}
+
 class ProvenanceLine extends StatelessWidget {
   final String source;
   final String? updatedAt;
@@ -59,7 +83,8 @@ class ProvenanceLine extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final parts = <String>[source];
-    if (updatedAt != null && updatedAt!.isNotEmpty) parts.add(updatedAt!);
+    final human = humanizeTimestamp(updatedAt);
+    if (human.isNotEmpty) parts.add(human);
     if (note != null && note!.isNotEmpty) parts.add(note!);
     return Text(parts.join('  ·  '), style: AppTheme.caption);
   }
@@ -225,7 +250,7 @@ class ScoreAnatomy extends StatelessWidget {
           SetupChip(score: score),
           if (confidence != null) ...[
             const SizedBox(height: 8),
-            Text('${(confidence! * 100).round()}% confidence', style: AppTheme.caption),
+            Text('Signal strength ${(confidence! * 100).round()}% · not calibrated hit-rate', style: AppTheme.caption),
           ],
         ])),
       ],

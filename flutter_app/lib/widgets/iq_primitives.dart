@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import '../theme/app_theme.dart';
 
 /// Shared visual primitives for InvestIQ 2.0 — Visual Intelligence.
 
+// ─── Data freshness ─────────────────────────────────────────────────
 enum DataFreshness { live, delayed, cached }
 
 class FreshnessPill extends StatelessWidget {
@@ -38,48 +40,67 @@ class FreshnessPill extends StatelessWidget {
         mainAxisSize: MainAxisSize.min,
         children: [
           Container(
-            width: 6, height: 6,
+            width: 6,
+            height: 6,
             decoration: BoxDecoration(color: c, shape: BoxShape.circle),
           ),
           const SizedBox(width: 5),
-          Text(text, style: TextStyle(color: c, fontSize: 10, fontWeight: FontWeight.w700, letterSpacing: 0.4)),
+          Text(
+            text,
+            style: TextStyle(
+              color: c,
+              fontSize: 10,
+              fontWeight: FontWeight.w700,
+              letterSpacing: 0.4,
+            ),
+          ),
         ],
       ),
     );
   }
 }
 
+// ─── Data provenance line ───────────────────────────────────────────
 class ProvenanceLine extends StatelessWidget {
   final String source;
   final String? updatedAt;
   final String? note;
-  const ProvenanceLine({super.key, required this.source, this.updatedAt, this.note});
+  const ProvenanceLine({
+    super.key,
+    required this.source,
+    this.updatedAt,
+    this.note,
+  });
 
   @override
   Widget build(BuildContext context) {
     final parts = <String>[source];
     if (updatedAt != null && updatedAt!.isNotEmpty) parts.add(updatedAt!);
     if (note != null && note!.isNotEmpty) parts.add(note!);
-    return Text(parts.join('  ·  '), style: AppTheme.caption);
+    return Text(
+      parts.join('  ·  '),
+      style: AppTheme.caption,
+    );
   }
 }
 
+// ─── Interactive breadcrumb ─────────────────────────────────────────
 class ResearchBreadcrumb extends StatelessWidget {
   final List<BreadcrumbItem> items;
   const ResearchBreadcrumb({super.key, required this.items});
 
   @override
   Widget build(BuildContext context) {
-    return SingleChildScrollView(
-      scrollDirection: Axis.horizontal,
-      child: Row(
-        children: [
-          for (var i = 0; i < items.length; i++) ...[
-            if (i > 0)
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 6),
-                child: Text('›', style: TextStyle(color: AppTheme.textMuted, fontSize: 13)),
-              ),
+    return Wrap(
+      crossAxisAlignment: WrapCrossAlignment.center,
+      children: [
+        for (var i = 0; i < items.length; i++) ...[
+          if (i > 0)
+            const Padding(
+              padding: EdgeInsets.symmetric(horizontal: 4),
+              child: Text('›', style: TextStyle(color: AppTheme.textMuted, fontSize: 12)),
+            ),
+          if (items[i].onTap != null)
             GestureDetector(
               onTap: items[i].onTap,
               child: Text(
@@ -90,10 +111,18 @@ class ResearchBreadcrumb extends StatelessWidget {
                   fontWeight: i == items.length - 1 ? FontWeight.w600 : FontWeight.w500,
                 ),
               ),
+            )
+          else
+            Text(
+              items[i].label,
+              style: TextStyle(
+                color: i == items.length - 1 ? AppTheme.textPrimary : AppTheme.textSecondary,
+                fontSize: 12,
+                fontWeight: i == items.length - 1 ? FontWeight.w600 : FontWeight.w500,
+              ),
             ),
-          ],
         ],
-      ),
+      ],
     );
   }
 }
@@ -104,39 +133,53 @@ class BreadcrumbItem {
   const BreadcrumbItem(this.label, {this.onTap});
 }
 
+// ─── Setup chip (Strong / Watch / Neutral / Weak) ───────────────────
 class SetupChip extends StatelessWidget {
   final double score;
-  final bool compact;
-  const SetupChip({super.key, required this.score, this.compact = false});
+  const SetupChip({super.key, required this.score});
 
   @override
   Widget build(BuildContext context) {
-    final color = AppTheme.setupColor(score);
     final label = AppTheme.setupLabel(score);
+    final color = AppTheme.setupColor(score);
     return Container(
-      padding: EdgeInsets.symmetric(horizontal: compact ? 7 : 10, vertical: compact ? 2 : 4),
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
       decoration: BoxDecoration(
         color: color.withOpacity(0.14),
-        borderRadius: BorderRadius.circular(compact ? 4 : 12),
+        borderRadius: BorderRadius.circular(12),
       ),
-      child: Text(label, style: TextStyle(color: color, fontSize: compact ? 10 : 11, fontWeight: FontWeight.w700)),
+      child: Text(
+        label,
+        style: TextStyle(color: color, fontSize: 11, fontWeight: FontWeight.w700),
+      ),
     );
   }
 }
 
+// ─── Mini sparkline ─────────────────────────────────────────────────
 class Sparkline extends StatelessWidget {
   final List<double> values;
   final Color color;
   final double height;
   final double width;
-  const Sparkline({super.key, required this.values, this.color = AppTheme.accent, this.height = 28, this.width = 64});
+
+  const Sparkline({
+    super.key,
+    required this.values,
+    this.color = AppTheme.accent,
+    this.height = 28,
+    this.width = 64,
+  });
 
   @override
   Widget build(BuildContext context) {
     if (values.length < 2) return SizedBox(width: width, height: height);
     return SizedBox(
-      width: width, height: height,
-      child: CustomPaint(painter: _SparkPainter(values, color)),
+      width: width,
+      height: height,
+      child: CustomPaint(
+        painter: _SparkPainter(values: values, color: color),
+      ),
     );
   }
 }
@@ -144,37 +187,51 @@ class Sparkline extends StatelessWidget {
 class _SparkPainter extends CustomPainter {
   final List<double> values;
   final Color color;
-  _SparkPainter(this.values, this.color);
+  _SparkPainter({required this.values, required this.color});
 
   @override
   void paint(Canvas canvas, Size size) {
     final minV = values.reduce((a, b) => a < b ? a : b);
     final maxV = values.reduce((a, b) => a > b ? a : b);
-    final range = (maxV - minV).abs() < 1e-9 ? 1.0 : (maxV - minV);
+    final range = (maxV - minV).abs() < 1e-6 ? 1.0 : (maxV - minV);
     final path = Path();
     for (var i = 0; i < values.length; i++) {
-      final x = i / (values.length - 1) * size.width;
+      final x = size.width * i / (values.length - 1);
       final y = size.height - ((values[i] - minV) / range) * size.height;
-      if (i == 0) path.moveTo(x, y); else path.lineTo(x, y);
+      if (i == 0) {
+        path.moveTo(x, y);
+      } else {
+        path.lineTo(x, y);
+      }
     }
-    canvas.drawPath(path, Paint()
+    final paint = Paint()
       ..color = color
       ..style = PaintingStyle.stroke
       ..strokeWidth = 1.4
       ..strokeCap = StrokeCap.round
-      ..strokeJoin = StrokeJoin.round);
+      ..strokeJoin = StrokeJoin.round;
+    canvas.drawPath(path, paint);
   }
 
   @override
-  bool shouldRepaint(covariant _SparkPainter old) => old.values != values || old.color != color;
+  bool shouldRepaint(covariant _SparkPainter old) =>
+      old.values != values || old.color != color;
 }
 
+// ─── Factor bar ─────────────────────────────────────────────────────
 class FactorBar extends StatelessWidget {
   final String label;
   final double value;
   final Color? color;
   final bool showValue;
-  const FactorBar({super.key, required this.label, required this.value, this.color, this.showValue = true});
+
+  const FactorBar({
+    super.key,
+    required this.label,
+    required this.value,
+    this.color,
+    this.showValue = true,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -184,12 +241,19 @@ class FactorBar extends StatelessWidget {
       padding: const EdgeInsets.only(bottom: 10),
       child: Row(
         children: [
-          SizedBox(width: 100, child: Text(label, style: const TextStyle(color: AppTheme.textSecondary, fontSize: 12))),
+          SizedBox(
+            width: 100,
+            child: Text(
+              label,
+              style: const TextStyle(color: AppTheme.textSecondary, fontSize: 12),
+            ),
+          ),
           Expanded(
             child: ClipRRect(
               borderRadius: BorderRadius.circular(3),
               child: LinearProgressIndicator(
-                value: v, minHeight: 6,
+                value: v,
+                minHeight: 6,
                 backgroundColor: AppTheme.borderSubtle,
                 color: c.withOpacity(0.85),
               ),
@@ -202,7 +266,11 @@ class FactorBar extends StatelessWidget {
               child: Text(
                 value > 1.0 ? value.round().toString() : (v * 100).round().toString(),
                 textAlign: TextAlign.right,
-                style: const TextStyle(color: AppTheme.textPrimary, fontWeight: FontWeight.w600, fontSize: 12),
+                style: const TextStyle(
+                  color: AppTheme.textPrimary,
+                  fontWeight: FontWeight.w600,
+                  fontSize: 12,
+                ),
               ),
             ),
           ],
@@ -212,12 +280,20 @@ class FactorBar extends StatelessWidget {
   }
 }
 
+// ─── Score anatomy (circular contribution view) ─────────────────────
 class ScoreAnatomy extends StatelessWidget {
   final double score;
   final String setup;
   final Color setupColor;
   final double? confidence;
-  const ScoreAnatomy({super.key, required this.score, required this.setup, required this.setupColor, this.confidence});
+
+  const ScoreAnatomy({
+    super.key,
+    required this.score,
+    required this.setup,
+    required this.setupColor,
+    this.confidence,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -225,14 +301,17 @@ class ScoreAnatomy extends StatelessWidget {
     return Row(
       children: [
         SizedBox(
-          width: 88, height: 88,
+          width: 88,
+          height: 88,
           child: Stack(
             alignment: Alignment.center,
             children: [
               SizedBox(
-                width: 88, height: 88,
+                width: 88,
+                height: 88,
                 child: CircularProgressIndicator(
-                  value: t, strokeWidth: 7,
+                  value: t,
+                  strokeWidth: 7,
                   backgroundColor: AppTheme.borderSubtle,
                   color: setupColor,
                   strokeCap: StrokeCap.round,
@@ -241,7 +320,10 @@ class ScoreAnatomy extends StatelessWidget {
               Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Text(score.toStringAsFixed(1), style: AppTheme.mono.copyWith(fontSize: 20)),
+                  Text(
+                    score.toStringAsFixed(1),
+                    style: AppTheme.mono.copyWith(fontSize: 20),
+                  ),
                   Text('/ 100', style: AppTheme.caption),
                 ],
               ),
@@ -258,7 +340,10 @@ class ScoreAnatomy extends StatelessWidget {
               SetupChip(score: score),
               if (confidence != null) ...[
                 const SizedBox(height: 8),
-                Text('${(confidence! * 100).round()}% confidence', style: AppTheme.caption),
+                Text(
+                  '${(confidence! * 100).round()}% confidence',
+                  style: AppTheme.caption,
+                ),
               ],
             ],
           ),
@@ -268,13 +353,22 @@ class ScoreAnatomy extends StatelessWidget {
   }
 }
 
+// ─── Soft error / empty state ───────────────────────────────────────
 class SoftStatus extends StatelessWidget {
   final String title;
   final String body;
   final String? actionLabel;
   final VoidCallback? onAction;
   final IconData icon;
-  const SoftStatus({super.key, required this.title, required this.body, this.actionLabel, this.onAction, this.icon = Icons.cloud_off_outlined});
+
+  const SoftStatus({
+    super.key,
+    required this.title,
+    required this.body,
+    this.actionLabel,
+    this.onAction,
+    this.icon = Icons.cloud_off_outlined,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -300,4 +394,180 @@ class SoftStatus extends StatelessWidget {
       ),
     );
   }
+}
+
+// ─── Expandable audit factor (signature: tap to see calculation) ────
+class ExpandableAuditRow extends StatefulWidget {
+  final String label;
+  final double score;
+  final double weight;
+  final double contribution;
+  final Map<String, dynamic> rawInputs;
+  final String? regimeNote;
+
+  const ExpandableAuditRow({
+    super.key,
+    required this.label,
+    required this.score,
+    required this.weight,
+    required this.contribution,
+    this.rawInputs = const {},
+    this.regimeNote,
+  });
+
+  @override
+  State<ExpandableAuditRow> createState() => _ExpandableAuditRowState();
+}
+
+class _ExpandableAuditRowState extends State<ExpandableAuditRow> {
+  bool _open = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final up = widget.contribution >= 0;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        InkWell(
+          onTap: () {
+            HapticFeedback.selectionClick();
+            setState(() => _open = !_open);
+          },
+          borderRadius: BorderRadius.circular(8),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(vertical: 10),
+            child: Row(
+              children: [
+                Expanded(
+                  flex: 3,
+                  child: Row(
+                    children: [
+                      Icon(
+                        _open ? Icons.expand_more : Icons.chevron_right,
+                        size: 16,
+                        color: AppTheme.textMuted,
+                      ),
+                      const SizedBox(width: 4),
+                      Flexible(
+                        child: Text(
+                          widget.label,
+                          style: const TextStyle(
+                            fontWeight: FontWeight.w600,
+                            fontSize: 13,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                Expanded(
+                  child: Text(
+                    widget.score.toStringAsFixed(1),
+                    textAlign: TextAlign.right,
+                    style: AppTheme.monoSmall,
+                  ),
+                ),
+                Expanded(
+                  child: Text(
+                    '${(widget.weight * 100).toStringAsFixed(0)}%',
+                    textAlign: TextAlign.right,
+                    style: AppTheme.monoSmall,
+                  ),
+                ),
+                Expanded(
+                  child: Text(
+                    '${up ? '+' : ''}${widget.contribution.toStringAsFixed(1)}',
+                    textAlign: TextAlign.right,
+                    style: AppTheme.monoSmall.copyWith(
+                      color: up ? AppTheme.green : AppTheme.red,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+        AnimatedCrossFade(
+          firstChild: const SizedBox.shrink(),
+          secondChild: Container(
+            width: double.infinity,
+            margin: const EdgeInsets.only(bottom: 12, left: 8),
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: AppTheme.surfaceElevated,
+              borderRadius: BorderRadius.circular(AppTheme.radiusMd),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(widget.label.toUpperCase(), style: AppTheme.sectionLabel),
+                const SizedBox(height: 8),
+                _kv('Contribution', '${up ? '+' : ''}${widget.contribution.toStringAsFixed(2)} points'),
+                _kv('Weight', '${(widget.weight * 100).toStringAsFixed(1)}%'),
+                _kv('Raw score', widget.score.toStringAsFixed(2)),
+                if (widget.regimeNote != null && widget.regimeNote!.isNotEmpty)
+                  _kv('Regime', widget.regimeNote!),
+                if (widget.rawInputs.isNotEmpty) ...[
+                  const SizedBox(height: 8),
+                  Text('INPUTS', style: AppTheme.caption),
+                  const SizedBox(height: 6),
+                  ...widget.rawInputs.entries.take(6).map((e) {
+                    final v = e.value;
+                    final display = v is num
+                        ? (v is int ? '$$v' : (v as num).toStringAsFixed(2))
+                        : '$$v';
+                    return Padding(
+                      padding: const EdgeInsets.only(bottom: 4),
+                      child: Row(
+                        children: [
+                          Expanded(
+                            child: Text(
+                              e.key.replaceAll('_', ' '),
+                              style: const TextStyle(
+                                color: AppTheme.textSecondary,
+                                fontSize: 12,
+                              ),
+                            ),
+                          ),
+                          Text(
+                            display,
+                            style: const TextStyle(
+                              fontWeight: FontWeight.w600,
+                              fontSize: 12,
+                            ),
+                          ),
+                        ],
+                      ),
+                    );
+                  }),
+                ],
+                const SizedBox(height: 6),
+                Text(
+                  '${widget.score.toStringAsFixed(1)} × ${(widget.weight * 100).toStringAsFixed(0)}% ≈ ${widget.contribution.toStringAsFixed(2)}',
+                  style: AppTheme.caption,
+                ),
+              ],
+            ),
+          ),
+          crossFadeState:
+              _open ? CrossFadeState.showSecond : CrossFadeState.showFirst,
+          duration: AppTheme.standard,
+        ),
+      ],
+    );
+  }
+
+  Widget _kv(String k, String v) => Padding(
+        padding: const EdgeInsets.only(bottom: 4),
+        child: Row(
+          children: [
+            SizedBox(
+              width: 100,
+              child: Text(k, style: const TextStyle(color: AppTheme.textSecondary, fontSize: 12)),
+            ),
+            Text(v, style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 12)),
+          ],
+        ),
+      );
 }

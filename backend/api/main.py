@@ -9,8 +9,9 @@ import time
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
 
-from fastapi import FastAPI, Query, Header, HTTPException
+from fastapi import FastAPI, Query, Header, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import HTMLResponse, JSONResponse
 from loguru import logger
 
 from config.settings import settings
@@ -37,6 +38,73 @@ app.add_middleware(
 )
 
 _start = time.time()
+
+
+@app.get("/", response_model=None)
+def root(request: Request):
+    """Landing for browser wake-up + API discovery.
+
+    Free Render dynos sleep after idle. The Flutter app asks users to open this
+    URL once so the instance boots. Without a root route FastAPI returned
+    {"detail":"Not Found"}, which looked broken. Browsers get a small HTML
+    page; clients get JSON.
+    """
+    payload: Dict[str, Any] = {
+        "service": "InvestIQ Research API",
+        "version": "2.3.0",
+        "status": "ok",
+        "engine": "2.3",
+        "uptime_sec": round(time.time() - _start, 1),
+        "docs": "/docs",
+        "health": "/health",
+        "message": "Read-only multi-horizon stock research. Never places orders.",
+        "endpoints": {
+            "health": "/health",
+            "top_recommendations": "/api/v1/recommendations/top",
+            "symbol": "/api/v1/recommendations/{symbol}",
+            "history": "/api/v1/stocks/{symbol}/history",
+            "movers": "/api/v1/market/movers",
+            "indices": "/api/v1/indices",
+            "search": "/api/v1/search",
+            "quotes": "/api/v1/quotes",
+            "portfolio": "/api/v1/portfolio/summary",
+        },
+    }
+    accept = (request.headers.get("accept") or "").lower()
+    if "text/html" in accept:
+        html = f"""<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>InvestIQ API</title>
+<style>
+  body {{ margin:0; font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+         background:#0b0f14; color:#e8eef5; display:flex; min-height:100vh;
+         align-items:center; justify-content:center; }}
+  .card {{ max-width:520px; padding:28px 32px; border-radius:16px;
+           background:#12181f; border:1px solid #1e2936; box-shadow:0 12px 40px rgba(0,0,0,.35); }}
+  h1 {{ margin:0 0 6px; font-size:1.45rem; letter-spacing:-0.02em; }}
+  .ok {{ color:#34d399; font-weight:600; font-size:0.9rem; margin-bottom:8px; }}
+  p {{ color:#9aa7b5; line-height:1.55; margin:12px 0; }}
+  a {{ color:#5eead4; text-decoration:none; }}
+  a:hover {{ text-decoration:underline; }}
+  .meta {{ font-size:0.85rem; margin-top:18px; color:#6b7785; }}
+</style>
+</head>
+<body>
+  <div class="card">
+    <div class="ok">● Online</div>
+    <h1>InvestIQ Research API</h1>
+    <p>Read-only multi-horizon stock research desk. <strong>Never places orders.</strong></p>
+    <p>Server is awake. Return to the app and tap <strong>Retry</strong>.</p>
+    <p><a href="/docs">Open API docs</a> · <a href="/health">Health</a></p>
+    <p class="meta">v{payload['version']} · uptime {payload['uptime_sec']}s · engine {payload['engine']}</p>
+  </div>
+</body>
+</html>"""
+        return HTMLResponse(html)
+    return JSONResponse(payload)
 
 
 @app.get("/health")

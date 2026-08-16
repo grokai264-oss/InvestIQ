@@ -54,14 +54,36 @@ class _StockDetailScreenState extends State<StockDetailScreen>
         _watched = w;
         _quote = quotes[widget.symbol.toUpperCase()];
         _loading = false;
-        // Chart series comes from a future history API; keep honest empty state for now.
-        _spots = const [];
+      });
+      // Load chart after overview so the desk paints quickly
+      _loadChart('1M');
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        _loading = false;
+        _chartLoading = false;
+      });
+    }
+  }
+
+  Future<void> _loadChart(String range) async {
+    setState(() => _chartLoading = true);
+    try {
+      final points = await _api.getHistory(widget.symbol, range: range);
+      final spots = <FlSpot>[];
+      for (var i = 0; i < points.length; i++) {
+        final c = points[i]['c'];
+        if (c is num) spots.add(FlSpot(i.toDouble(), c.toDouble()));
+      }
+      if (!mounted) return;
+      setState(() {
+        _spots = spots;
         _chartLoading = false;
       });
     } catch (_) {
       if (!mounted) return;
       setState(() {
-        _loading = false;
+        _spots = const [];
         _chartLoading = false;
       });
     }
@@ -179,7 +201,10 @@ class _StockDetailScreenState extends State<StockDetailScreen>
           symbol: widget.symbol,
           isLoading: _chartLoading,
           pricePoints: _spots,
-          note: 'Historical candles require the market-data history service (next layer).',
+          note: _spots.isEmpty && !_chartLoading
+              ? 'No history returned for this range yet.'
+              : null,
+          onTimeframeChanged: (tf) => _loadChart(tf),
         ),
         const SizedBox(height: 24),
         ScoreAnatomy(
